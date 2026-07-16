@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Circle, Pause, Play, Square } from 'lucide-react'
 import { Scene } from '../components/Scene'
+import { CockpitReferenceFrame } from '../components/CockpitReferenceFrame'
 import { FixedFixation } from '../components/FixedFixation'
 import { downloadText, oppositeDirection, resultToCsv } from '../lib/trial'
 import { useAppStore } from '../store'
@@ -33,7 +34,7 @@ export function Trial({ research=false, onComplete }: { research?: boolean; onCo
   const motionMode = paused ? 'idle' : phase==='adaptation' ? 'adaptation' : phase==='transition'||phase==='motion-test' ? 'test' : 'idle'
   const responses=responseByType[config.stimulusType]
   if(phase==='idle') return <main className="screen trial-screen"><Scene stimulus={config.stimulusType}/><section className="trial-intro"><p>RESEARCH MODE</p><h1>Bidirectional motion<br/>discrimination.</h1><p>Adapt to fully coherent motion, then report the global direction when randomly assigned dots move in opposite directions.</p><button className="primary" onClick={start}><Play/>START TRIAL<ArrowRight/></button></section><ParameterRail research={research}/></main>
-  return <main className="screen trial-screen"><Scene stimulus={config.stimulusType} motionMode={motionMode}/><FixedFixation/><div className="phase-nav">{phaseOrder.map(p=><span className={phase===p?'active':''} key={p}>{p.replace('-',' ')}</span>)}</div><ParameterRail research={research}/>
+  return <main className="screen trial-screen"><Scene stimulus={config.stimulusType} motionMode={motionMode}/><CockpitReferenceFrame/><FixedFixation/><div className="phase-nav">{phaseOrder.map(p=><span className={phase===p?'active':''} key={p}>{p.replace('-',' ')}</span>)}</div><ParameterRail research={research}/>
     <div className="trial-controls"><button onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}{paused?'RESUME':'PAUSE'}</button><button onClick={()=>{setPhase('idle');setPaused(false)}}><Square/>ABORT TRIAL</button><div className="progress"><b>{Math.min(duration,elapsed/1000*1000).toFixed(0)}</b> / {duration} ms<i style={{width:`${Math.min(100,elapsed/duration*100)}%`}}/></div></div>
     {(phase==='motion-test')&&<div className="test-label"><b>BIDIRECTIONAL MOTION TEST</b><span>{Math.round(config.coherence*100)}% OPPOSITE · {Math.round((1-config.coherence)*100)}% ADAPTATION DIRECTION</span></div>}
     {phase==='response'&&<section className="response-panel"><p>MOTION-DIRECTION RESPONSE</p><h2>What was the global motion direction?</h2><div className="response-grid">{responses.map(([label,value,Icon])=><button className={selected===value?'selected':''} onClick={()=>recordDirection(value as MotionDirection)} key={value}><Icon/><span>{label}</span></button>)}<button className={selected==='unsure'?'selected':''} onClick={()=>recordDirection('unsure')}><b>?</b><span>Unsure</span></button></div><button className="primary" disabled={!selected} onClick={()=>setPhase('confidence')}>CONTINUE TO CONFIDENCE<ArrowRight/></button></section>}
