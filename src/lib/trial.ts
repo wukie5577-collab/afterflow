@@ -1,5 +1,7 @@
 import type { MotionDirection, TrialConfig, TrialPhase, TrialResult } from '../types'
 
+export const BLANK_TRANSITION_DURATION_MS = 200
+
 export const oppositeDirection = (direction: MotionDirection): MotionDirection => ({
   forward: 'backward', backward: 'forward', left: 'right', right: 'left',
   up: 'down', down: 'up', static: 'static', none: 'none',
