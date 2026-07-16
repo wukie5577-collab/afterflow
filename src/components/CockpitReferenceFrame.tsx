@@ -2,7 +2,10 @@ import { useThree } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 
-const COCKPIT_DEPTH = 6
+// The frame sits inside the radial flow volume rather than in front of it.
+// Forward particles can therefore travel from behind the cockpit to the
+// viewer side of it, creating a genuine fly-through depth cue.
+const COCKPIT_DEPTH = 0
 
 interface PanelProps {
   color: string
@@ -21,9 +24,9 @@ function Panel({color,height,width,x,y,z=COCKPIT_DEPTH}:PanelProps){
 }
 
 /**
- * A stable near-field reference built from real scene geometry. It sits
- * between the camera and particles, so its panels occlude dots while the
- * central window remains open and makes radial depth motion easier to judge.
+ * A stable cockpit reference built from real scene geometry. It occupies only
+ * the extreme periphery and sits inside the radial particle volume, allowing
+ * dots to travel through the open view and pass the cockpit depth plane.
  */
 export function CockpitReferenceFrame(){
   const camera=useThree(state=>state.camera as THREE.PerspectiveCamera)
@@ -34,10 +37,10 @@ export function CockpitReferenceFrame(){
     return {height,width:height*(viewportSize.width/viewportSize.height)}
   },[camera.fov,camera.position.z,viewportSize.height,viewportSize.width])
   const {height,width}=dimensions
-  const side=width*.095,top=height*.105,bottom=height*.145
+  const side=width*.035,top=height*.045,bottom=height*.065
   const windowLeft=-width/2+side,windowRight=width/2-side
   const windowTop=height/2-top,windowBottom=-height/2+bottom
-  const rim=.022
+  const rim=height*.008
   return <group name="cockpit-depth-reference" renderOrder={10}>
     <Panel color="#181a19" height={height} width={side} x={-width/2+side/2} y={0}/>
     <Panel color="#181a19" height={height} width={side} x={width/2-side/2} y={0}/>
