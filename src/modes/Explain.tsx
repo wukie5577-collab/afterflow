@@ -1,0 +1,6 @@
+import { useState } from 'react'
+import { ArrowRight } from 'lucide-react'
+import { Scene } from '../components/Scene'
+
+const steps=[['Preparation','A deterministic dot field is generated from the trial seed.'],['100% coherent adaptation','Every dot follows the configured adaptation direction.'],['Bidirectional test','Dots are randomly assigned: the configured share moves opposite to adaptation and the remainder continues in the adaptation direction.'],['Direction report','The participant reports the perceived global motion direction and confidence.']]
+export function Explain(){const [step,setStep]=useState(0);const testPhase=step>=2;return <main className="screen explain"><Scene stimulus="radial" motionMode={testPhase?'test':'adaptation'}/><section><p>HOW IT WORKS · {String(step+1).padStart(2,'0')} / 04</p><h1>{steps[step][0]}</h1><p>{steps[step][1]}</p><div className="science-flow">{steps.map((s,i)=><button className={i===step?'active':''} onClick={()=>setStep(i)} key={s[0]}>{i+1}</button>)}</div><button className="primary" onClick={()=>setStep((step+1)%4)}>NEXT STEP<ArrowRight/></button><small>{testPhase?'Test view: opposite-direction and adaptation-direction groups are visually identical.':'Adaptation view: 100% coherent motion.'}</small></section></main>}
