@@ -34,7 +34,24 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   toggleReducedEffects: () => set(s => ({ reducedEffects: !s.reducedEffects })),
 }), {
   name: 'afterflow-settings',
-  version: 2,
+  version: 3,
+  migrate: (persistedState, version) => {
+    const saved = persistedState as Partial<Pick<AppState, 'quality' | 'muted' | 'reducedEffects'>> & { config?: Partial<TrialConfig> }
+    return {
+      quality: saved.quality ?? 'balanced',
+      muted: saved.muted ?? true,
+      reducedEffects: saved.reducedEffects ?? false,
+      config: {
+        ...defaultConfig,
+        ...saved.config,
+        ...(version < 3 ? {
+          oppositeDirectionShare: 0.5,
+          cockpitEnabled: true,
+          concentricGuidesEnabled: true,
+        } : {}),
+      },
+    }
+  },
   partialize: s => ({ quality: s.quality, muted: s.muted, reducedEffects: s.reducedEffects, config: s.config }),
   merge: (persisted, current) => {
     const saved = persisted as Partial<AppState>
