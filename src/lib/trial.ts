@@ -2,6 +2,10 @@ import type { MotionDirection, TrialConfig, TrialPhase, TrialResult } from '../t
 
 export const BLANK_TRANSITION_DURATION_MS = 200
 
+const stimulusPhases = new Set<TrialPhase>(['fixation','adaptation','transition','motion-test'])
+
+export function isStimulusPhase(phase: TrialPhase) { return stimulusPhases.has(phase) }
+
 export const oppositeDirection = (direction: MotionDirection): MotionDirection => ({
   forward: 'backward', backward: 'forward', left: 'right', right: 'left',
   up: 'down', down: 'up', static: 'static', none: 'none',
