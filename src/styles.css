@@ -34,3 +34,76 @@
 .session-complete dt,.session-complete dd{font:10px DM Mono,monospace;letter-spacing:.14em}.session-complete dd{margin:0;color:var(--cyan)}
 .session-complete>p:not(:first-child){color:var(--muted);font-size:13px}.session-complete button{margin-top:24px;border:1px solid var(--line);padding:16px 22px}
 .fixation,.static-label{display:none!important}
+
+/* Post-adaptation bias protocol UI */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.trial-screen.rail-open .trial-intro{left:320px;width:min(430px,38vw)}
+.parameter-rail{width:300px;padding:32px 28px;gap:20px;overflow-y:auto;overscroll-behavior:contain;background:rgba(5,8,7,.94)}
+.parameter-rail,.response-panel{scrollbar-width:thin;scrollbar-color:#665c50 #101311}
+.parameter-rail::-webkit-scrollbar,.response-panel::-webkit-scrollbar{width:6px}
+.parameter-rail::-webkit-scrollbar-track,.response-panel::-webkit-scrollbar-track{background:#101311}
+.parameter-rail::-webkit-scrollbar-thumb,.response-panel::-webkit-scrollbar-thumb{background:#665c50;border-radius:6px}
+.parameter-rail-toggle.open{left:252px}
+.parameter-rail label small,.protocol-lock small{display:block;margin-top:9px;color:#777a74;font:8px/1.5 DM Mono,monospace;letter-spacing:.08em}
+.protocol-lock{padding:14px 0 17px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.protocol-lock span{display:block;color:#9d9c94;font:9px DM Mono,monospace;letter-spacing:.12em}
+.protocol-lock b{display:block;margin-top:9px;color:var(--cyan);font:11px/1.45 DM Mono,monospace;letter-spacing:.08em}
+.calibration-disclosure{margin-top:18px;padding:14px;border:1px solid rgba(100,210,208,.32);background:rgba(8,14,13,.82)}
+.calibration-disclosure>p{margin:0 0 10px;color:var(--cyan);font:9px DM Mono,monospace;letter-spacing:.14em}
+.calibration-disclosure dl{margin:0}
+.calibration-disclosure dl div{display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-top:1px solid rgba(233,230,218,.09)}
+.calibration-disclosure dt,.calibration-disclosure dd{margin:0;font:7.5px/1.4 DM Mono,monospace;letter-spacing:.07em}
+.calibration-disclosure dt{color:#83857f}.calibration-disclosure dd{color:#d8a75e;text-align:right}
+.calibration-disclosure.compact{width:min(430px,100%);margin-top:18px;padding:11px 14px}
+.calibration-disclosure.compact dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px}
+
+.response-panel{top:0;bottom:0;right:0;width:min(610px,52vw);padding:clamp(44px,8vh,76px) clamp(28px,4vw,54px);overflow-y:auto;background:rgba(4,7,6,.97)}
+.response-panel h2{font-size:clamp(28px,3vw,42px);margin:20px 0 12px}
+.panel-note{margin:0 0 30px;color:#979991;font:10px/1.65 DM Mono,monospace;letter-spacing:.07em;white-space:normal;overflow-wrap:anywhere}
+.response-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:24px}
+.response-grid button{min-width:0;aspect-ratio:2.35;gap:10px;padding:12px}
+.response-grid button span{font-size:9px;line-height:1.35;text-align:center}
+.response-panel .primary{max-width:none}
+.response-panel>label{margin:30px 0 38px}
+.response-panel input[type=range]{display:block;max-width:100%;box-sizing:border-box}
+.panel-exit{display:block;margin:20px auto 0;padding:12px;color:#777a74;font-size:8px}
+.panel-exit:hover{color:var(--ivory)}
+.response-panel.complete{left:50%;right:auto;top:12px;bottom:12px;transform:translateX(-50%);width:min(760px,calc(100vw - 40px));padding:22px 38px;background:rgba(4,7,6,.985);border:1px solid var(--line)}
+.response-panel.complete h2{font-size:31px;margin:12px 0 5px}
+.response-panel.complete>.panel-note{margin-bottom:12px;font-size:8px}
+.response-panel.complete .result-readout{margin:10px 0}
+.response-panel.complete .result-readout div{gap:30px;padding:6px 0}
+.response-panel.complete .result-readout dt{font-size:8px}.response-panel.complete .result-readout dd{font-size:10px}
+.response-panel.complete .result-readout dd{max-width:62%;text-align:right;white-space:normal;line-height:1.4}
+.response-panel.complete .calibration-disclosure{margin-top:10px;padding:9px 12px}
+.response-panel.complete .calibration-disclosure>p{margin-bottom:6px}
+.response-panel.complete .calibration-disclosure dl div{padding:3px 0}
+.inline-actions{margin-top:10px}
+.response-panel.complete .inline-actions button{height:40px;padding:0 14px;font-size:9px}
+.paused-indicator{position:fixed;z-index:60;left:50%;top:56%;transform:translateX(-50%);padding:12px 16px;border:1px solid var(--amber);background:#080b0a;color:var(--amber);font:10px DM Mono,monospace;letter-spacing:.12em}
+
+.explain section{top:13%;width:min(520px,45vw);padding:16px 32px 18px 0;background:linear-gradient(90deg,rgba(6,10,8,.96) 0%,rgba(6,10,8,.82) 75%,transparent 100%)}
+.explain h1{font-size:clamp(42px,4.5vw,58px);margin:10px 0}
+.explain section>p:nth-of-type(2){margin:6px 0 8px;line-height:1.55}
+.explain-detail{max-width:460px;color:#d6a45d!important;font:10px/1.65 DM Mono,monospace!important;letter-spacing:.05em}
+.explain .science-flow{margin:16px 0 12px}
+.explain .primary{height:50px}
+.explain-calibration{margin-top:10px;padding-top:9px;border-top:1px solid rgba(100,210,208,.28);max-width:460px}
+.explain-calibration b,.explain-calibration span{display:block;font:8px/1.55 DM Mono,monospace;letter-spacing:.09em}
+.explain-calibration b{color:var(--cyan)}.explain-calibration span{margin-top:5px;color:#858780}
+
+@media(max-width:900px){
+  .trial-screen.rail-open .trial-intro{left:24px;width:calc(100% - 48px)}
+  .parameter-rail{top:72px;bottom:0;width:min(340px,100%);height:auto;padding:28px 24px;display:flex;overflow-y:auto}
+  .parameter-rail>p,.parameter-rail .calibration-disclosure,.parameter-rail label:nth-of-type(n+4){display:block}
+  .parameter-rail-toggle{top:84px}.parameter-rail-toggle.open{left:min(292px,calc(100vw - 48px))}
+  .trial-screen.rail-open .trial-intro{opacity:.15;pointer-events:none}
+  .response-panel,.confidence-panel{top:0;width:100%;padding:46px 20px 32px}
+  .response-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .response-grid button{aspect-ratio:2.15}
+  .response-panel.complete{left:12px;right:12px;top:12px;bottom:12px;transform:none;width:auto;padding:28px 20px}
+  .response-panel.complete .result-readout dd{max-width:55%}
+  .calibration-disclosure.compact dl{grid-template-columns:1fr}
+  .explain section{left:24px;top:14%;width:calc(100% - 48px);padding-right:18px}
+  .explain-calibration{max-width:100%}
+}
