@@ -14,23 +14,41 @@ export interface TrialConfig {
   presentation: 'full-field' | 'peripheral'
   randomSeed: number
   attentionTask: boolean
-  coherence: number
+  oppositeDirectionShare: number
   luminance: number
   contrast: number
   apertureRadius: number
   peripheralInnerRadius: number
+  cockpitEnabled: boolean
+  concentricGuidesEnabled: boolean
+}
+
+export type ResponseRelation = 'opposite-to-adaptation' | 'same-as-adaptation' | 'static' | 'unsure' | 'other'
+
+export interface DisplayCalibrationStatus {
+  viewingDistanceCm: null
+  physicalScreenWidthCm: null
+  visualAngleCalibrated: false
+  estimatedRefreshRateHz: number | null
+  refreshRateValidated: false
+  deviceTimingValidated: false
+  viewportWidthPx: number
+  viewportHeightPx: number
+  devicePixelRatio: number
 }
 
 export interface TrialResult {
   id: string
   timestamp: string
   config: TrialConfig
-  expectedAftereffect: MotionDirection
+  maeConsistentDirection: MotionDirection
   response: MotionDirection | 'unsure'
+  responseRelation: ResponseRelation
   confidence: number
-  reactionTimeMs: number
+  responsePromptLatencyMs: number
   actualAdaptationDurationMs: number
   frameIntervals: number[]
+  displayCalibration: DisplayCalibrationStatus
   warnings: string[]
   aborted: boolean
 }
@@ -39,6 +57,6 @@ export const defaultConfig: TrialConfig = {
   stimulusType: 'radial', direction: 'forward', adaptationDurationMs: 20000,
   staticTestDurationMs: 5000, speed: 1.2, particleCount: 100, particleSize: 0.045,
   presentation: 'peripheral', randomSeed: 1024, attentionTask: true,
-  coherence: 0.5, luminance: 0.82, contrast: 0.72, apertureRadius: 1,
-  peripheralInnerRadius: 0.16,
+  oppositeDirectionShare: 0.5, luminance: 0.82, contrast: 0.72, apertureRadius: 1,
+  peripheralInnerRadius: 0.16, cockpitEnabled: true, concentricGuidesEnabled: true,
 }
