@@ -8,6 +8,9 @@ import type { MotionDirection, StimulusType, TrialConfig } from '../types'
 
 type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
+const RADIAL_FLOW_FAR_Z = -15
+const RADIAL_FLOW_NEAR_Z = 7.15
+
 interface ParticleSeed {
   positions: Float32Array
   signal: Uint8Array
@@ -36,8 +39,8 @@ function coherentVelocity(type: StimulusType, direction: MotionDirection, speed:
 }
 
 function wrapPosition(position: THREE.Vector3) {
-  if (position.z > 1) position.z = -15
-  if (position.z < -15) position.z = 1
+  if (position.z > RADIAL_FLOW_NEAR_Z) position.z = RADIAL_FLOW_FAR_Z
+  if (position.z < RADIAL_FLOW_FAR_Z) position.z = RADIAL_FLOW_NEAR_Z
   if (position.x > 5.4) position.x = -5.4
   if (position.x < -5.4) position.x = 5.4
   if (position.y > 4.2) position.y = -4.2
