@@ -11,6 +11,8 @@
 .stimulus-canvas{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;transform:none!important;animation:none!important;transition:none!important;contain:strict}
 .stimulus-canvas canvas{display:block!important;width:100%!important;height:100%!important;transform:none!important}
 .stimulus-canvas:after{display:none!important}
+.cockpit-reference-lock{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:3;overflow:hidden;pointer-events:none;transform:none!important;translate:none!important;scale:none!important;rotate:none!important;animation:none!important;transition:none!important;will-change:auto!important;contain:strict;user-select:none}
+.cockpit-reference-lock img{display:block;width:100vw!important;height:100vh!important;object-fit:fill;opacity:.92;pointer-events:none;transform:none!important;translate:none!important;scale:none!important;rotate:none!important;animation:none!important;transition:none!important;filter:none!important}
 .fixation-lock{position:fixed!important;left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;width:22px;height:22px;margin-left:-11px!important;margin-top:-11px!important;z-index:50;pointer-events:none;transform:none!important;translate:none!important;scale:none!important;rotate:none!important;animation:none!important;transition:none!important;will-change:auto!important;contain:strict;color:#e6ad55}
 .fixation-horizontal,.fixation-vertical,.fixation-center{position:absolute;display:block;background:currentColor;box-shadow:0 0 4px rgba(230,173,85,.35)}
 .fixation-horizontal{left:2px;top:50%;width:18px;height:1px;margin-top:-.5px}
