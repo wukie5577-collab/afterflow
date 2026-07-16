@@ -2,56 +2,223 @@ import { useThree } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 
-// The frame sits inside the radial flow volume rather than in front of it.
-// Forward particles can therefore travel from behind the cockpit to the
-// viewer side of it, creating a genuine fly-through depth cue.
+// The cockpit sits inside the particle volume. Forward-moving particles can
+// therefore cross its reference plane and continue towards the observer.
 const COCKPIT_DEPTH = 0
 
 interface PanelProps {
   color: string
   height: number
+  rotation?: number
   width: number
   x: number
   y: number
   z?: number
 }
 
-function Panel({color,height,width,x,y,z=COCKPIT_DEPTH}:PanelProps){
-  return <mesh position={[x,y,z]} frustumCulled={false}>
-    <planeGeometry args={[width,height]} />
-    <meshBasicMaterial color={color} depthTest depthWrite toneMapped={false} />
-  </mesh>
+function Panel({
+  color,
+  height,
+  rotation = 0,
+  width,
+  x,
+  y,
+  z = COCKPIT_DEPTH,
+}: PanelProps) {
+  return (
+    <mesh position={[x, y, z]} rotation={[0, 0, rotation]} frustumCulled={false}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial color={color} depthTest depthWrite toneMapped={false} />
+    </mesh>
+  )
+}
+
+interface RailProps {
+  color: string
+  from: THREE.Vector2
+  thickness: number
+  to: THREE.Vector2
+  z: number
+}
+
+function Rail({ color, from, thickness, to, z }: RailProps) {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+
+  return (
+    <Panel
+      color={color}
+      height={thickness}
+      rotation={Math.atan2(dy, dx)}
+      width={Math.hypot(dx, dy)}
+      x={(from.x + to.x) / 2}
+      y={(from.y + to.y) / 2}
+      z={z}
+    />
+  )
+}
+
+function createCockpitShell(width: number, height: number, aperture: THREE.Vector2[]) {
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+  const outer = [
+    new THREE.Vector2(-halfWidth, -halfHeight),
+    new THREE.Vector2(-halfWidth, halfHeight),
+    new THREE.Vector2(halfWidth, halfHeight),
+    new THREE.Vector2(halfWidth, -halfHeight),
+  ]
+
+  // Three.js expects opposite winding directions for the shell and its hole.
+  if (!THREE.ShapeUtils.isClockWise(outer)) outer.reverse()
+  const hole = [...aperture]
+  if (THREE.ShapeUtils.isClockWise(hole)) hole.reverse()
+
+  const shape = new THREE.Shape(outer)
+  shape.holes.push(new THREE.Path(hole))
+  return shape
 }
 
 /**
- * A stable cockpit reference built from real scene geometry. It occupies only
- * the extreme periphery and sits inside the radial particle volume, allowing
- * dots to travel through the open view and pass the cockpit depth plane.
+ * A screen-stable, scene-space cockpit reference with a panoramic faceted
+ * windscreen. The aperture remains deliberately large: the frame establishes
+ * depth without shrinking the radial stimulus into a small rectangular panel.
  */
-export function CockpitReferenceFrame(){
-  const camera=useThree(state=>state.camera as THREE.PerspectiveCamera)
-  const viewportSize=useThree(state=>state.size)
-  const dimensions=useMemo(()=>{
-    const distance=Math.abs(camera.position.z-COCKPIT_DEPTH)
-    const height=2*Math.tan(THREE.MathUtils.degToRad(camera.fov)/2)*distance
-    return {height,width:height*(viewportSize.width/viewportSize.height)}
-  },[camera.fov,camera.position.z,viewportSize.height,viewportSize.width])
-  const {height,width}=dimensions
-  const side=width*.035,top=height*.045,bottom=height*.065
-  const windowLeft=-width/2+side,windowRight=width/2-side
-  const windowTop=height/2-top,windowBottom=-height/2+bottom
-  const rim=height*.008
-  return <group name="cockpit-depth-reference" renderOrder={10}>
-    <Panel color="#181a19" height={height} width={side} x={-width/2+side/2} y={0}/>
-    <Panel color="#181a19" height={height} width={side} x={width/2-side/2} y={0}/>
-    <Panel color="#232321" height={top} width={width-side*2} x={0} y={height/2-top/2}/>
-    <Panel color="#201d19" height={bottom} width={width-side*2} x={0} y={-height/2+bottom/2}/>
-    <Panel color="#d5c7b7" height={rim} width={windowRight-windowLeft} x={0} y={windowTop-rim/2} z={COCKPIT_DEPTH+.015}/>
-    <Panel color="#8d765f" height={rim} width={windowRight-windowLeft} x={0} y={windowBottom+rim/2} z={COCKPIT_DEPTH+.015}/>
-    <Panel color="#d5c7b7" height={windowTop-windowBottom} width={rim} x={windowLeft+rim/2} y={(windowTop+windowBottom)/2} z={COCKPIT_DEPTH+.015}/>
-    <Panel color="#d5c7b7" height={windowTop-windowBottom} width={rim} x={windowRight-rim/2} y={(windowTop+windowBottom)/2} z={COCKPIT_DEPTH+.015}/>
-    <Panel color="#e3a34b" height={rim*.42} width={width*.22} x={0} y={windowTop-rim*.78} z={COCKPIT_DEPTH+.03}/>
-    <Panel color="#65cfd0" height={height*.16} width={rim*.34} x={windowLeft-rim*.85} y={0} z={COCKPIT_DEPTH+.03}/>
-    <Panel color="#65cfd0" height={height*.16} width={rim*.34} x={windowRight+rim*.85} y={0} z={COCKPIT_DEPTH+.03}/>
-  </group>
+export function CockpitReferenceFrame() {
+  const camera = useThree((state) => state.camera as THREE.PerspectiveCamera)
+  const viewportSize = useThree((state) => state.size)
+  const dimensions = useMemo(() => {
+    const distance = Math.abs(camera.position.z - COCKPIT_DEPTH)
+    const height = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * distance
+    return { height, width: height * (viewportSize.width / viewportSize.height) }
+  }, [camera.fov, camera.position.z, viewportSize.height, viewportSize.width])
+
+  const { height, width } = dimensions
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+
+  // A wide 12-sided aperture reads as a windscreen while preserving almost the
+  // entire stimulus field. The angled pillars live only in the outer periphery.
+  const aperture = useMemo(
+    () => [
+      new THREE.Vector2(-halfWidth * 0.80, -halfHeight * 0.88),
+      new THREE.Vector2(halfWidth * 0.80, -halfHeight * 0.88),
+      new THREE.Vector2(halfWidth * 0.92, -halfHeight * 0.70),
+      new THREE.Vector2(halfWidth * 0.96, -halfHeight * 0.27),
+      new THREE.Vector2(halfWidth * 0.96, halfHeight * 0.30),
+      new THREE.Vector2(halfWidth * 0.89, halfHeight * 0.75),
+      new THREE.Vector2(halfWidth * 0.68, halfHeight * 0.90),
+      new THREE.Vector2(-halfWidth * 0.68, halfHeight * 0.90),
+      new THREE.Vector2(-halfWidth * 0.89, halfHeight * 0.75),
+      new THREE.Vector2(-halfWidth * 0.96, halfHeight * 0.30),
+      new THREE.Vector2(-halfWidth * 0.96, -halfHeight * 0.27),
+      new THREE.Vector2(-halfWidth * 0.92, -halfHeight * 0.70),
+    ],
+    [halfHeight, halfWidth],
+  )
+  const shell = useMemo(() => createCockpitShell(width, height, aperture), [aperture, height, width])
+  const railThickness = height * 0.006
+  const lowerConsoleY = -halfHeight * 0.945
+
+  return (
+    <group name="cockpit-depth-reference" renderOrder={10}>
+      <mesh position={[0, 0, COCKPIT_DEPTH]} frustumCulled={false}>
+        <shapeGeometry args={[shell]} />
+        <meshBasicMaterial color="#292a28" depthTest depthWrite toneMapped={false} />
+      </mesh>
+
+      {aperture.map((point, index) => (
+        <Rail
+          key={`rail-bed-${index}`}
+          color="#625b53"
+          from={point}
+          thickness={railThickness * 3.2}
+          to={aperture[(index + 1) % aperture.length]}
+          z={COCKPIT_DEPTH + 0.012}
+        />
+      ))}
+      {aperture.map((point, index) => (
+        <Rail
+          key={`inner-rail-${index}`}
+          color={index > 5 && index < 9 ? '#d8c9b9' : '#ad9c8c'}
+          from={point}
+          thickness={railThickness}
+          to={aperture[(index + 1) % aperture.length]}
+          z={COCKPIT_DEPTH + 0.018}
+        />
+      ))}
+
+      {/* Layered brow and glareshield give the opening a designed cockpit silhouette. */}
+      <Panel
+        color="#2b2d2b"
+        height={height * 0.034}
+        width={width * 0.38}
+        x={0}
+        y={halfHeight * 0.955}
+        z={COCKPIT_DEPTH + 0.01}
+      />
+      <Panel
+        color="#e1a348"
+        height={height * 0.005}
+        width={width * 0.18}
+        x={0}
+        y={halfHeight * 0.935}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+      <Panel
+        color="#e1a348"
+        height={height * 0.006}
+        rotation={0.12}
+        width={width * 0.11}
+        x={-halfWidth * 0.37}
+        y={halfHeight * 0.89}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+      <Panel
+        color="#e1a348"
+        height={height * 0.006}
+        rotation={-0.12}
+        width={width * 0.11}
+        x={halfWidth * 0.37}
+        y={halfHeight * 0.89}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+
+      {/* Instrument light bars stay peripheral and never cover the moving field. */}
+      <Panel
+        color="#6ad8d4"
+        height={height * 0.12}
+        rotation={-0.13}
+        width={railThickness * 0.46}
+        x={-halfWidth * 0.955}
+        y={-halfHeight * 0.08}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+      <Panel
+        color="#6ad8d4"
+        height={height * 0.12}
+        rotation={0.13}
+        width={railThickness * 0.46}
+        x={halfWidth * 0.955}
+        y={-halfHeight * 0.08}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+
+      <Panel
+        color="#292621"
+        height={height * 0.042}
+        width={width * 0.42}
+        x={0}
+        y={lowerConsoleY}
+        z={COCKPIT_DEPTH + 0.01}
+      />
+      <Panel
+        color="#b97e32"
+        height={height * 0.004}
+        width={width * 0.12}
+        x={0}
+        y={lowerConsoleY + height * 0.006}
+        z={COCKPIT_DEPTH + 0.035}
+      />
+    </group>
+  )
 }
