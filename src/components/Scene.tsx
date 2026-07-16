@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { CockpitReferenceFrame } from './CockpitReferenceFrame'
 import { deterministicGroupMask, oppositeDirection, seededRandom } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { MotionDirection, StimulusType, TrialConfig } from '../types'
@@ -84,7 +85,7 @@ function ConcentricGuides() {
   </mesh>)}</group>
 }
 
-export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean }) {
+export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, cockpit = false }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; cockpit?: boolean }) {
   const config = useAppStore(s => s.config)
   const quality = useAppStore(s => s.quality)
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
@@ -94,6 +95,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
       <color attach="background" args={['#080b0a']} />
       {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />}
       {motionMode !== 'blank' && stimulus === 'radial' ? <ConcentricGuides /> : null}
+      {cockpit ? <CockpitReferenceFrame /> : null}
     </Canvas>
   </div>
 }
