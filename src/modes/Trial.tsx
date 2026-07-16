@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Circle, Pause, Play, Square } from 'lucide-react'
 import { Scene } from '../components/Scene'
-import { CockpitReferenceFrame } from '../components/CockpitReferenceFrame'
 import { FixedFixation } from '../components/FixedFixation'
-import { BLANK_TRANSITION_DURATION_MS, downloadText, oppositeDirection, resultToCsv } from '../lib/trial'
+import { BLANK_TRANSITION_DURATION_MS, downloadText, isStimulusPhase, oppositeDirection, resultToCsv } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { MotionDirection, TrialPhase, TrialResult } from '../types'
 
@@ -29,6 +28,15 @@ export function Trial({ research=false, onComplete }: { research?: boolean; onCo
   const start=useCallback(()=>{ setRailOpen(false);setElapsed(0); started.current=performance.now(); lastFrame.current=started.current; frameTimes.current=[]; setPhase('fixation') },[setPhase])
   useEffect(()=>{ if(phase==='idle' && !research) start() },[phase,research,start])
   useEffect(()=>{
+    if(!isStimulusPhase(phase))return
+    const onKeyDown=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'){setPhase('idle');setPaused(false)}
+      if(event.key.toLowerCase()==='p')setPaused(value=>!value)
+    }
+    window.addEventListener('keydown',onKeyDown)
+    return()=>window.removeEventListener('keydown',onKeyDown)
+  },[phase,setPhase])
+  useEffect(()=>{
     if(['idle','response','confidence','complete'].includes(phase)||paused)return
     let raf=0; const tick=(now:number)=>{ const dt=now-lastFrame.current;if(lastFrame.current)frameTimes.current.push(dt);lastFrame.current=now;const next=now-started.current;setElapsed(next)
       if(next>=duration){ const nextPhase:TrialPhase=phase==='fixation'?'adaptation':phase==='adaptation'?'transition':phase==='transition'?'motion-test':'response'; if(phase==='adaptation')actualAdaptation.current=next; started.current=now;lastFrame.current=now;setElapsed(0);setPhase(nextPhase);if(nextPhase==='response')responseStarted.current=now }
@@ -39,11 +47,10 @@ export function Trial({ research=false, onComplete }: { research?: boolean; onCo
     addResult(result);setPhase('complete');onComplete?.() }
   const recordDirection=(value:MotionDirection|'unsure')=>{setSelected(value);reactionTime.current=Math.round(performance.now()-responseStarted.current)}
   const motionMode = phase==='transition' ? 'blank' : paused ? 'idle' : phase==='adaptation' ? 'adaptation' : phase==='motion-test' ? 'test' : 'idle'
+  const cleanStimulusView=isStimulusPhase(phase)
   const responses=responseByType[config.stimulusType]
   if(phase==='idle') return <main className="screen trial-screen"><Scene stimulus={config.stimulusType}/><section className="trial-intro"><p>RESEARCH MODE</p><h1>Bidirectional motion<br/>discrimination.</h1><p>Adapt to fully coherent motion, then report the global direction when randomly assigned dots move in opposite directions.</p><button className="primary" onClick={start}><Play/>START TRIAL<ArrowRight/></button></section><ParameterRail research={research} open={railOpen} onToggle={()=>setRailOpen(open=>!open)}/></main>
-  return <main className="screen trial-screen"><Scene stimulus={config.stimulusType} motionMode={motionMode}/><CockpitReferenceFrame/><FixedFixation/><div className="phase-nav">{phaseSteps.map(step=><span className={phase===step.phase?'active':''} key={step.phase}>{step.label}</span>)}</div><ParameterRail research={research} open={railOpen} onToggle={()=>setRailOpen(open=>!open)}/>
-    <div className="trial-controls"><button onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}{paused?'RESUME':'PAUSE'}</button><button onClick={()=>{setPhase('idle');setPaused(false)}}><Square/>ABORT TRIAL</button><div className="progress"><b>{Math.min(duration,elapsed/1000*1000).toFixed(0)}</b> / {duration} ms<i style={{width:`${Math.min(100,elapsed/duration*100)}%`}}/></div></div>
-    {(phase==='motion-test')&&<div className="test-label"><b>BIDIRECTIONAL MOTION TEST</b><span>{Math.round(config.coherence*100)}% OPPOSITE · {Math.round((1-config.coherence)*100)}% ADAPTATION DIRECTION</span></div>}
+  return <main className={`screen trial-screen ${cleanStimulusView?'clean-stimulus-view':''}`}><Scene stimulus={config.stimulusType} motionMode={motionMode} cockpit/><FixedFixation/>{!cleanStimulusView?<><div className="phase-nav">{phaseSteps.map(step=><span className={phase===step.phase?'active':''} key={step.phase}>{step.label}</span>)}</div><ParameterRail research={research} open={railOpen} onToggle={()=>setRailOpen(open=>!open)}/><div className="trial-controls"><button onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}{paused?'RESUME':'PAUSE'}</button><button onClick={()=>{setPhase('idle');setPaused(false)}}><Square/>ABORT TRIAL</button><div className="progress"><b>{Math.min(duration,elapsed/1000*1000).toFixed(0)}</b> / {duration} ms<i style={{width:`${Math.min(100,elapsed/duration*100)}%`}}/></div></div></>:null}
     {phase==='response'&&<section className="response-panel"><p>MOTION-DIRECTION RESPONSE</p><h2>What was the global motion direction?</h2><div className="response-grid">{responses.map(([label,value,Icon])=><button className={selected===value?'selected':''} onClick={()=>recordDirection(value as MotionDirection)} key={value}><Icon/><span>{label}</span></button>)}<button className={selected==='unsure'?'selected':''} onClick={()=>recordDirection('unsure')}><b>?</b><span>Unsure</span></button></div><button className="primary" disabled={!selected} onClick={()=>setPhase('confidence')}>CONTINUE TO CONFIDENCE<ArrowRight/></button></section>}
     {phase==='confidence'&&<section className="response-panel confidence-panel"><p>CONFIDENCE</p><h2>How certain are you about “{selected}”?</h2><label>CONFIDENCE · {confidence}/5<input type="range" min="1" max="5" value={confidence} onChange={e=>setConfidence(Number(e.target.value))}/></label><button className="primary" onClick={submit}>RECORD TRIAL<ArrowRight/></button></section>}
     {phase==='complete'&&<section className="response-panel complete"><p>TRIAL RECORDED</p><h2>Direction discrimination result.</h2><dl className="result-readout"><div><dt>ADAPTATION</dt><dd>{config.direction}</dd></div><div><dt>EXPECTED OPPOSITE</dt><dd>{oppositeDirection(config.direction)}</dd></div><div><dt>REPORTED</dt><dd>{selected}</dd></div><div><dt>REACTION TIME</dt><dd>{results.at(-1)?.reactionTimeMs ?? 0} ms</dd></div><div><dt>CONFIDENCE</dt><dd>{confidence} / 5</dd></div><div><dt>MEAN FRAME INTERVAL</dt><dd>{averageFrameInterval(results.at(-1)?.frameIntervals)} ms</dd></div></dl><div className="inline-actions"><button onClick={()=>setPhase('idle')}>NEXT TRIAL</button><button onClick={()=>downloadText('afterflow-session.json',JSON.stringify(results,null,2),'application/json')}>EXPORT JSON</button><button onClick={()=>downloadText('afterflow-session.csv',resultToCsv(results),'text/csv')}>EXPORT CSV</button></div></section>}
