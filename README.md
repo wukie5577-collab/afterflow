@@ -1,6 +1,6 @@
 # AFTERFLOW
 
-A code-first React Three Fiber experience for demonstrating the Motion Aftereffect (MAE), including radial depth, horizontal, and vertical adaptation.
+A code-first React Three Fiber experiment for measuring post-adaptation perceptual bias in an exactly balanced bidirectional motion test.
 
 ## Run
 
@@ -20,19 +20,21 @@ npm run build
 ## Modes
 
 - **Experience** is a guided three-channel protocol with neutral, non-diagnostic feedback.
-- **Research** exposes direction, duration, speed, density, and stimulus type, then exports JSON/CSV.
-- **Explain** steps through adaptation and the temporary opposite-direction percept.
+- **Research** exposes direction, duration, conceptual speed, density, stimulus type, cockpit reference, and concentric guides, then exports JSON/CSV.
+- **Explain** distinguishes coherent adaptation, the 200 ms blank gap, the 50/50 physical-motion test, and an MAE-consistent bias report.
 - **Presentation** autoplays a concise conference-safe explanation of the bidirectional task.
 
 ## Scientific boundary
 
-During adaptation, 100% of dots follow the configured direction. During `motion-test`, dots are assigned deterministically to two visually identical groups: the configured proportion moves opposite to adaptation and the remainder continues in the adaptation direction. The default is 50% opposite and 50% same-direction motion. There is no static-dot test, arbitrary-direction noise, decorative environment, camera motion, or post-processing. Browser timing is appropriate for demos, pilots, and exploratory research, but controlled perceptual studies need device-specific validation and screen/viewing-distance calibration.
+During adaptation, 100% of dots follow the configured direction. At the start of every trial, a new logged random seed assigns exactly 50% of the visually identical test dots to the opposite direction and 50% to the adaptation direction. The balanced test has no objectively correct global direction: responses are classified as same-direction, opposite-direction, static, uncertain, or other perceptual bias. An opposite-direction report is MAE-consistent, but it is not scored as correct.
+
+This is not a classic static-dot MAE test. It studies how prior adaptation biases perceived dominance in a physically moving, balanced bidirectional stimulus. Browser timing is appropriate for demonstrations, pilots, and exploratory research. Viewing distance, physical screen size, visual angle, refresh rate, and device timing are explicitly marked as uncalibrated or unvalidated until device-specific calibration is added.
 
 The fixation overlay is a fixed screen-space element at exactly `(50vw, 50vh)`. It is outside the Three.js scene graph and uses no transform, animation, or responsive offset. The full-viewport Canvas, perspective optic-flow origin, concentric guides, and fixation all share the normalized screen-space origin `(0, 0)`.
 
 ## Data
 
-Results remain local. Research Mode exports JSON or CSV containing settings, expected direction, response, confidence, reaction time, timing intervals, and warning flags. No name or email is collected.
+Results remain local. Research Mode exports JSON or CSV containing settings, MAE-consistent theoretical direction, response relation, confidence, response-prompt latency, timing intervals, cockpit/guides conditions, viewport data, refresh estimate, calibration status, and warning flags. No name or email is collected.
 
 ## Presets and Unity bridge
 
@@ -57,6 +59,8 @@ The relative Vite base supports GitHub Pages, Vercel, and Netlify. Deploy the ge
 ## Limitations
 
 - Visual speed is conceptual rather than calibrated retinal velocity.
-- Display refresh estimation and focus/visibility event logging can be expanded for a formal study.
+- Physical dot size is not calibrated in degrees of visual angle.
+- Display refresh rate is estimated from frame intervals, not independently validated.
+- Viewing distance, physical screen dimensions, and device timing calibration are not yet collected.
 - WebXR is intentionally left as a future layer; the desktop scientific boundary is implemented first.
 - Generated concept images in `design/` are implementation references, not runtime assets.
