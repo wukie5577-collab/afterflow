@@ -19,7 +19,7 @@ interface ParticleSeed {
 function makeParticleSeed(config: TrialConfig, count: number): ParticleSeed {
   const random = seededRandom(config.randomSeed)
   const positions = new Float32Array(count * 3)
-  const signal = deterministicGroupMask(count, config.coherence, config.randomSeed ^ 0x9e3779b9)
+  const signal = deterministicGroupMask(count, config.oppositeDirectionShare, config.randomSeed ^ 0x9e3779b9)
   for (let i = 0; i < count; i++) {
     const theta = random() * Math.PI * 2
     const minRadius = config.presentation === 'peripheral' ? config.peripheralInnerRadius * 5 : 0.05
@@ -97,8 +97,8 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
     <Canvas camera={{ position: [0, 0, 8], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
       <color attach="background" args={['#080b0a']} />
       {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />}
-      {motionMode !== 'blank' && stimulus === 'radial' ? <ConcentricGuides /> : null}
-      {cockpit ? <CockpitReferenceFrame /> : null}
+      {motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled ? <ConcentricGuides /> : null}
+      {cockpit && sceneConfig.cockpitEnabled ? <CockpitReferenceFrame /> : null}
     </Canvas>
   </div>
 }
