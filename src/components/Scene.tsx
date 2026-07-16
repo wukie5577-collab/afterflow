@@ -5,7 +5,7 @@ import { deterministicGroupMask, oppositeDirection, seededRandom } from '../lib/
 import { useAppStore } from '../store'
 import type { MotionDirection, StimulusType, TrialConfig } from '../types'
 
-type MotionMode = 'idle' | 'adaptation' | 'test'
+type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
 interface ParticleSeed {
   positions: Float32Array
@@ -89,11 +89,11 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   const quality = useAppStore(s => s.quality)
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
-  return <div className="scene stimulus-canvas" data-stimulus-origin="viewport-center" aria-hidden="true">
+  return <div className="scene stimulus-canvas" data-stimulus-origin="viewport-center" data-motion-mode={motionMode} aria-hidden="true">
     <Canvas camera={{ position: [0, 0, 8], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
       <color attach="background" args={['#080b0a']} />
-      <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />
-      {stimulus === 'radial' ? <ConcentricGuides /> : null}
+      {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />}
+      {motionMode !== 'blank' && stimulus === 'radial' ? <ConcentricGuides /> : null}
     </Canvas>
   </div>
 }
