@@ -1,15 +1,14 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CockpitReferenceFrame } from './CockpitReferenceFrame'
-import { deterministicGroupMask, oppositeDirection, seededRandom } from '../lib/trial'
+import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { MotionDirection, StimulusType, TrialConfig } from '../types'
 
 type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
-const RADIAL_FLOW_FAR_Z = -15
-const RADIAL_FLOW_NEAR_Z = 7.15
+const CAMERA_Z = 8
 
 interface ParticleSeed {
   positions: Float32Array
@@ -26,7 +25,8 @@ function makeParticleSeed(config: TrialConfig, count: number): ParticleSeed {
     const radius = minRadius + Math.sqrt(random()) * (config.apertureRadius * 4.7 - minRadius)
     positions[i * 3] = Math.cos(theta) * radius
     positions[i * 3 + 1] = Math.sin(theta) * radius
-    positions[i * 3 + 2] = -1 - random() * 14
+    const distance = config.particleNearDistance + random() * (config.particleFarDistance - config.particleNearDistance)
+    positions[i * 3 + 2] = CAMERA_Z - distance
   }
   return { positions, signal }
 }
@@ -38,9 +38,11 @@ function coherentVelocity(type: StimulusType, direction: MotionDirection, speed:
   return [0, sign * speed * 1.7, 0] as const
 }
 
-function wrapPosition(position: THREE.Vector3) {
-  if (position.z > RADIAL_FLOW_NEAR_Z) position.z = RADIAL_FLOW_FAR_Z
-  if (position.z < RADIAL_FLOW_FAR_Z) position.z = RADIAL_FLOW_NEAR_Z
+function wrapPosition(position: THREE.Vector3, config: TrialConfig) {
+  const nearZ = CAMERA_Z - config.particleNearDistance
+  const farZ = CAMERA_Z - config.particleFarDistance
+  if (position.z > nearZ) position.z = farZ
+  if (position.z < farZ) position.z = nearZ
   if (position.x > 5.4) position.x = -5.4
   if (position.x < -5.4) position.x = 5.4
   if (position.y > 4.2) position.y = -4.2
@@ -49,26 +51,63 @@ function wrapPosition(position: THREE.Vector3) {
 
 function CoherenceStimulus({ config, count, mode }: { config: TrialConfig; count: number; mode: MotionMode }) {
   const mesh = useRef<THREE.InstancedMesh>(null)
+  const material = useRef<THREE.MeshBasicMaterial>(null)
+  const adaptationFrame = useRef(0)
+  const accumulatedAdaptationDelta = useRef(0)
+  const adaptationOpacityElapsed = useRef(0)
   const seed = useMemo(() => makeParticleSeed(config, count), [config, count])
   const position = useMemo(() => new THREE.Vector3(), [])
   const matrix = useMemo(() => new THREE.Matrix4(), [])
   const testDirection = oppositeDirection(config.direction)
+
+  useEffect(() => {
+    adaptationFrame.current = 0
+    accumulatedAdaptationDelta.current = 0
+    adaptationOpacityElapsed.current = 0
+    if (material.current) material.current.opacity = 1
+  }, [mode])
+
   useFrame((_, delta) => {
     if (!mesh.current) return
     const adaptationVelocity = coherentVelocity(config.stimulusType, config.direction, config.speed)
     const oppositeVelocity = coherentVelocity(config.stimulusType, testDirection, config.speed)
-    const dt = Math.min(delta, 0.05)
+    const frameDelta = Math.min(delta, 0.05)
+    const temporalSamplingActive = usesAdaptationTemporalSampling(mode, config.adaptationTemporalSamplingEnabled)
+    let motionDelta = frameDelta
+    let advancePositions = mode !== 'idle'
+
+    if (temporalSamplingActive) {
+      const stride = config.adaptationFrameStride
+      adaptationOpacityElapsed.current += frameDelta
+      const visibleFrameOpacity = raisedSineOpacity(adaptationOpacityElapsed.current, config.adaptationOpacityFrequencyHz, config.adaptationMinimumOpacity)
+      if (material.current) material.current.opacity = temporalDutyCycleOpacity(adaptationFrame.current, stride, visibleFrameOpacity)
+      accumulatedAdaptationDelta.current += frameDelta
+      advancePositions = isTemporalSampleFrame(adaptationFrame.current, stride)
+      if (advancePositions) {
+        motionDelta = Math.min(accumulatedAdaptationDelta.current, 0.15)
+        accumulatedAdaptationDelta.current = 0
+      }
+      adaptationFrame.current += 1
+    } else {
+      if (material.current) material.current.opacity = 1
+      adaptationFrame.current = 0
+      accumulatedAdaptationDelta.current = 0
+      adaptationOpacityElapsed.current = 0
+    }
+
     for (let i = 0; i < count; i++) {
       const offset = i * 3
       position.set(seed.positions[offset], seed.positions[offset + 1], seed.positions[offset + 2])
-      if (mode !== 'idle') {
+      if (advancePositions) {
         const velocity = mode === 'test' && seed.signal[i] === 1 ? oppositeVelocity : adaptationVelocity
         const vx = velocity[0], vy = velocity[1], vz = velocity[2]
-        position.x += vx * dt; position.y += vy * dt; position.z += vz * dt
-        wrapPosition(position)
+        position.x += vx * motionDelta; position.y += vy * motionDelta; position.z += vz * motionDelta
+        wrapPosition(position, config)
         seed.positions[offset] = position.x; seed.positions[offset + 1] = position.y; seed.positions[offset + 2] = position.z
       }
-      const depthScale = THREE.MathUtils.clamp((16 + position.z) / 15, .45, 1.25)
+      const distance = CAMERA_Z - position.z
+      const depthProgress = 1 - (distance - config.particleNearDistance) / (config.particleFarDistance - config.particleNearDistance)
+      const depthScale = THREE.MathUtils.lerp(.45, 1.25, THREE.MathUtils.clamp(depthProgress, 0, 1))
       matrix.makeScale(depthScale, depthScale, depthScale).setPosition(position)
       mesh.current.setMatrixAt(i, matrix)
     }
@@ -77,7 +116,7 @@ function CoherenceStimulus({ config, count, mode }: { config: TrialConfig; count
   const gray = THREE.MathUtils.clamp(config.luminance * config.contrast, .05, 1)
   return <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false}>
     <circleGeometry args={[config.particleSize, 12]} />
-    <meshBasicMaterial color={new THREE.Color(gray, gray, gray)} toneMapped={false} />
+    <meshBasicMaterial ref={material} color={new THREE.Color(gray, gray, gray)} transparent depthWrite={false} opacity={1} toneMapped={false} />
   </instancedMesh>
 }
 
@@ -93,8 +132,23 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   const quality = useAppStore(s => s.quality)
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
-  return <div className="scene stimulus-canvas" data-stimulus-origin="viewport-center" data-motion-mode={motionMode} aria-hidden="true">
-    <Canvas camera={{ position: [0, 0, 8], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
+  return <div
+    className="scene stimulus-canvas"
+    data-stimulus-origin="viewport-center"
+    data-motion-mode={motionMode}
+    data-particle-near-distance={sceneConfig.particleNearDistance}
+    data-particle-far-distance={sceneConfig.particleFarDistance}
+    data-adaptation-temporal-sampling={sceneConfig.adaptationTemporalSamplingEnabled}
+    data-temporal-sampling-active={usesAdaptationTemporalSampling(motionMode, sceneConfig.adaptationTemporalSamplingEnabled)}
+    data-adaptation-frame-stride={sceneConfig.adaptationFrameStride}
+    data-adaptation-visible-frames-per-cycle={sceneConfig.adaptationVisibleFramesPerCycle}
+    data-temporal-frame-pattern="blank-visible-blank"
+    data-adaptation-opacity-envelope={sceneConfig.adaptationOpacityEnvelope}
+    data-adaptation-opacity-frequency-hz={sceneConfig.adaptationOpacityFrequencyHz}
+    data-adaptation-minimum-opacity={sceneConfig.adaptationMinimumOpacity}
+    aria-hidden="true"
+  >
+    <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
       <color attach="background" args={['#080b0a']} />
       {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />}
       {motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled ? <ConcentricGuides /> : null}
