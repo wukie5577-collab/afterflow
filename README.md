@@ -1,6 +1,6 @@
 # AFTERFLOW
 
-A code-first React Three Fiber experiment for measuring post-adaptation perceptual bias in an exactly balanced bidirectional motion test.
+A code-first React Three Fiber experiment for measuring post-adaptation perceptual bias in a configurable bidirectional motion test.
 
 ## Run
 
@@ -20,25 +20,27 @@ npm run build
 ## Modes
 
 - **Experience** is a guided three-channel protocol with neutral, non-diagnostic feedback.
-- **Research** exposes direction, duration, conceptual speed, density, stimulus type, cockpit reference, and concentric guides, then exports JSON/CSV.
-- **Explain** distinguishes coherent adaptation, the 200 ms blank gap, the 50/50 physical-motion test, and an MAE-consistent bias report.
+- **Research** exposes bidirectional share, dot count, dot size, adaptation/test duration, conceptual speed, stimulus type, cockpit reference, and concentric guides, then exports JSON/CSV.
+- **Explain** distinguishes coherent adaptation, the 200 ms blank gap, the configurable physical-motion test, and an MAE-consistent bias report.
 - **Presentation** autoplays a concise conference-safe explanation of the bidirectional task.
 
 ## Scientific boundary
 
-During adaptation, 100% of dots follow the configured direction. At the start of every trial, a new logged random seed assigns exactly 50% of the visually identical test dots to the opposite direction and 50% to the adaptation direction. The balanced test has no objectively correct global direction: responses are classified as same-direction, opposite-direction, static, uncertain, or other perceptual bias. An opposite-direction report is MAE-consistent, but it is not scored as correct.
+During adaptation, 100% of dots follow the configured direction. At the start of every trial, a new logged random seed assigns the configured share of visually identical test dots to the opposite direction and the remainder to the adaptation direction. At 50 / 50 there is no physical majority; at other shares the physical mixture is explicit and recorded. Responses are classified as same-direction, opposite-direction, static, uncertain, or other perceptual bias. An opposite-direction report is MAE-consistent, but it is not scored as correct.
 
-This is not a classic static-dot MAE test. It studies how prior adaptation biases perceived dominance in a physically moving, balanced bidirectional stimulus. Browser timing is appropriate for demonstrations, pilots, and exploratory research. Viewing distance, physical screen size, visual angle, refresh rate, and device timing are explicitly marked as uncalibrated or unvalidated until device-specific calibration is added.
+This is not a classic static-dot MAE test. It studies how prior adaptation biases perceived dominance in a physically moving, configurable bidirectional stimulus. Browser timing is appropriate for demonstrations, pilots, and exploratory research. Viewing distance, physical screen size, visual angle, refresh rate, and device timing are explicitly marked as uncalibrated or unvalidated until device-specific calibration is added.
 
 The fixation overlay is a fixed screen-space element at exactly `(50vw, 50vh)`. It is outside the Three.js scene graph and uses no transform, animation, or responsive offset. The full-viewport Canvas, perspective optic-flow origin, concentric guides, and fixation all share the normalized screen-space origin `(0, 0)`.
 
 ## Data
 
-Results remain local. Research Mode exports JSON or CSV containing settings, MAE-consistent theoretical direction, response relation, confidence, response-prompt latency, timing intervals, cockpit/guides conditions, viewport data, refresh estimate, calibration status, and warning flags. No name or email is collected.
+Results remain local. Research Mode exports JSON or CSV containing configured/actual adaptation and test durations, blank-gap duration, the recorded adaptation-only temporal-sampling condition (motion stride, raised-sine frequency, and minimum opacity), bidirectional share, dot count, dot size, MAE-consistent theoretical direction, response relation, response-prompt latency, cockpit/guides conditions, viewport data, refresh estimate, calibration status, and warning flags. Confidence is not collected. No name or email is collected.
+
+The optional custom adaptation condition uses a strict 1 / 3 display duty cycle: one visible dot frame followed by two blank dot frames. Brightness across successive visible frames follows a configurable raised-sine envelope. This intentionally produces physical flicker at approximately one third of the actual refresh rate. The motion-test phase is not temporally sampled: dots render and update every display frame at opacity 1.
 
 ## Presets and Unity bridge
 
-`TrialConfig` in `src/types.ts` is JSON-compatible and can be mirrored in Unity. Key fields include `stimulusType`, `direction`, duration in milliseconds, conceptual speed, particle count, presentation aperture, and random seed.
+`TrialConfig` in `src/types.ts` is JSON-compatible and can be mirrored in Unity. Key fields include `stimulusType`, `direction`, duration in milliseconds, conceptual speed, particle count and size, observer-relative near/far dot distances, presentation aperture, and random seed. Dot distances use Three.js world units and must not be interpreted as physical metres or calibrated visual angle without device-specific calibration.
 
 ## Architecture
 
