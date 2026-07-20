@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Circle, Play } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Circle, Play, ShieldAlert, Square } from 'lucide-react'
 import { Scene } from '../components/Scene'
 import { FixedFixation } from '../components/FixedFixation'
 import {
   assignedGroupCount,
   BLANK_TRANSITION_DURATION_MS,
+  buildCounterbalancedSequence,
   displayCalibrationStatus,
   downloadText,
   isStimulusPhase,
   oppositeDirection,
   responseRelation,
+  responseLatencyMs,
   resultToCsv,
+  temporalSamplingSummary,
 } from '../lib/trial'
 import { useAppStore } from '../store'
-import type { MotionDirection, ResponseRelation, TrialPhase, TrialResult } from '../types'
+import type { MotionDirection, ResponseRelation, TrialEvent, TrialPhase, TrialResult } from '../types'
 
 const responseByType = {
   radial: [['Toward me', 'forward', ArrowUp], ['Away from me', 'backward', ArrowDown], ['No dominant motion', 'static', Circle]],
@@ -44,14 +47,26 @@ const relationLabels: Record<ResponseRelation, string> = {
 export function Trial({ research = false, onComplete }: { research?: boolean; onComplete?: () => void }) {
   const config = useAppStore((state) => state.config)
   const setConfig = useAppStore((state) => state.setConfig)
+  const applyTrialConfig = useAppStore((state) => state.applyTrialConfig)
   const phase = useAppStore((state) => state.phase)
   const setPhase = useAppStore((state) => state.setPhase)
   const addResult = useAppStore((state) => state.addResult)
   const results = useAppStore((state) => state.results)
+  const researchRole = useAppStore((state) => state.researchRole)
+  const setResearchRole = useAppStore((state) => state.setResearchRole)
+  const participantId = useAppStore((state) => state.participantId)
+  const setParticipantId = useAppStore((state) => state.setParticipantId)
+  const sessionId = useAppStore((state) => state.sessionId)
+  const sequence = useAppStore((state) => state.sequence)
+  const sequenceCursor = useAppStore((state) => state.sequenceCursor)
+  const setSequence = useAppStore((state) => state.setSequence)
+  const advanceSequence = useAppStore((state) => state.advanceSequence)
   const [paused, setPaused] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [selected, setSelected] = useState<MotionDirection | 'unsure' | null>(null)
   const [railOpen, setRailOpen] = useState(true)
+  const [safetyOpen, setSafetyOpen] = useState(false)
+  const safetyAcceptedRef = useRef(false)
   const started = useRef(0)
   const responseStarted = useRef(0)
   const responsePromptLatency = useRef(0)
@@ -59,6 +74,18 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
   const actualMotionTest = useRef(0)
   const frameTimes = useRef<number[]>([])
   const lastFrame = useRef(0)
+  const events = useRef<TrialEvent[]>([])
+  const focusLossCount = useRef(0)
+  const hiddenCount = useRef(0)
+  const temporalFrameTimes = useRef<number[]>([])
+  const temporalVisibleFrames = useRef(0)
+  const temporalScheduler = useRef<'webxr-predicted-display-time' | 'desktop-raf-estimate'>('desktop-raf-estimate')
+  const abortRef = useRef<() => void>(() => {})
+  const currentTrial = sequence?.trials[sequenceCursor]
+
+  const logEvent = useCallback((type: TrialEvent['type'], detail?: string) => {
+    events.current.push({ type, atMs: performance.now(), phase: useAppStore.getState().phase, detail })
+  }, [])
 
   const duration = phase === 'fixation'
     ? 1500
@@ -69,8 +96,10 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
         : config.staticTestDurationMs
 
   const start = useCallback(() => {
-    const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0]
-    setConfig({ randomSeed })
+    if (config.adaptationTemporalSamplingEnabled && !safetyAcceptedRef.current) { setSafetyOpen(true); return }
+    const trial = useAppStore.getState().sequence?.trials[useAppStore.getState().sequenceCursor]
+    if (trial) applyTrialConfig(trial.config)
+    else setConfig({ randomSeed: crypto.getRandomValues(new Uint32Array(1))[0] })
     setRailOpen(false)
     setSelected(null)
     setPaused(false)
@@ -80,25 +109,50 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
     frameTimes.current = []
     actualAdaptation.current = 0
     actualMotionTest.current = 0
+    responsePromptLatency.current = 0
+    events.current = []
+    focusLossCount.current = 0
+    hiddenCount.current = 0
+    temporalFrameTimes.current = []
+    temporalVisibleFrames.current = 0
+    logEvent('trial-start')
     setPhase('fixation')
-  }, [setConfig, setPhase])
+  }, [applyTrialConfig, config.adaptationTemporalSamplingEnabled, logEvent, setConfig, setPhase])
 
   useEffect(() => {
     if (phase === 'idle' && !research) start()
   }, [phase, research, start])
 
   useEffect(() => {
+    if (phase !== 'response') return
+    responseStarted.current = performance.now()
+    responsePromptLatency.current = 0
+    logEvent('response-prompt')
+  }, [logEvent, phase])
+
+  useEffect(() => {
     if (!isStimulusPhase(phase)) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setPhase('idle')
-        setPaused(false)
+        abortRef.current()
       }
       if (event.key.toLowerCase() === 'p') setPaused((value) => !value)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [phase, setPhase])
+
+  useEffect(() => {
+    if (phase === 'idle' || phase === 'complete') return
+    const onBlur = () => { focusLossCount.current += 1; logEvent('focus-lost') }
+    const onFocus = () => logEvent('focus-restored')
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { hiddenCount.current += 1; logEvent('visibility-hidden') }
+      else logEvent('visibility-visible')
+    }
+    window.addEventListener('blur', onBlur); window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility)
+    return () => { window.removeEventListener('blur', onBlur); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [logEvent, phase])
 
   useEffect(() => {
     if (['idle', 'response', 'complete'].includes(phase) || paused) return
@@ -111,7 +165,7 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
       setElapsed(nextElapsed)
       if (nextElapsed >= duration) {
         const nextPhase: TrialPhase = phase === 'fixation'
-          ? 'adaptation'
+          ? (config.adaptationDurationMs === 0 ? 'transition' : 'adaptation')
           : phase === 'adaptation'
             ? 'transition'
             : phase === 'transition'
@@ -122,37 +176,42 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
         started.current = now
         lastFrame.current = now
         setElapsed(0)
+        logEvent('phase-enter', nextPhase)
         setPhase(nextPhase)
-        if (nextPhase === 'response') responseStarted.current = now
       } else {
         animationFrame = requestAnimationFrame(tick)
       }
     }
     animationFrame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animationFrame)
-  }, [duration, paused, phase, setPhase])
+  }, [config.adaptationDurationMs, duration, logEvent, paused, phase, setPhase])
 
-  const submit = () => {
-    if (!selected) return
+  const buildResult = useCallback((response: MotionDirection | 'unsure', aborted: boolean): TrialResult => {
     const intervals = frameTimes.current
     const warnings: string[] = []
     if (intervals.some((value) => value > 50)) warnings.push('unstable-frame-timing')
-    if (document.visibilityState === 'hidden') warnings.push('page-hidden-at-submit')
-    const result: TrialResult = {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      config,
-      maeConsistentDirection: oppositeDirection(config.direction),
-      response: selected,
-      responseRelation: responseRelation(selected, config.direction),
-      responsePromptLatencyMs: responsePromptLatency.current,
-      actualAdaptationDurationMs: Math.round(actualAdaptation.current || config.adaptationDurationMs),
-      actualMotionTestDurationMs: Math.round(actualMotionTest.current || config.staticTestDurationMs),
-      frameIntervals: intervals,
-      displayCalibration: displayCalibrationStatus(intervals),
-      warnings,
-      aborted: false,
+    if (focusLossCount.current) warnings.push('focus-lost-during-trial')
+    if (hiddenCount.current) warnings.push('page-hidden-during-trial')
+    const temporal = temporalSamplingSummary(temporalFrameTimes.current, temporalVisibleFrames.current, temporalScheduler.current)
+    if (config.adaptationTemporalSamplingEnabled && !temporal.validatedAgainstDisplayFrames) warnings.push('temporal-sampling-not-display-frame-validated')
+    const trial = useAppStore.getState().sequence?.trials[useAppStore.getState().sequenceCursor]
+    return {
+      id: crypto.randomUUID(), timestamp: new Date().toISOString(), config,
+      maeConsistentDirection: oppositeDirection(config.direction), response,
+      responseRelation: responseRelation(response, config.direction),
+      responsePromptLatencyMs: aborted || !responseStarted.current ? 0 : responsePromptLatency.current,
+      actualAdaptationDurationMs: Math.round(actualAdaptation.current), actualMotionTestDurationMs: Math.round(actualMotionTest.current),
+      frameIntervals: intervals, displayCalibration: displayCalibrationStatus(intervals), warnings, aborted,
+      sessionId, participantId, sequenceId: sequence?.id ?? 'ad-hoc', trialIndex: trial?.trialIndex ?? 0,
+      blockIndex: trial?.blockIndex ?? 0, condition: trial?.condition ?? 'bidirectional-test', events: [...events.current],
+      focusLossCount: focusLossCount.current, hiddenCount: hiddenCount.current, temporalSamplingValidation: temporal,
     }
+  }, [config, participantId, sequence?.id, sessionId])
+
+  const submit = () => {
+    if (!selected) return
+    logEvent('complete')
+    const result = buildResult(selected, false)
     addResult(result)
     setPhase('complete')
     onComplete?.()
@@ -160,8 +219,22 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
 
   const recordDirection = (value: MotionDirection | 'unsure') => {
     setSelected(value)
-    responsePromptLatency.current = Math.round(performance.now() - responseStarted.current)
+    responsePromptLatency.current = responseLatencyMs(responseStarted.current, performance.now())
+    logEvent('response-selected', value)
   }
+
+  const abort = useCallback(() => {
+    logEvent('abort')
+    addResult(buildResult('unsure', true))
+    setPaused(false); setPhase('idle')
+  }, [addResult, buildResult, logEvent, setPhase])
+  abortRef.current = abort
+
+  const onTemporalFrame = useCallback((timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => {
+    temporalScheduler.current = scheduler
+    temporalFrameTimes.current.push(timestamp)
+    if (visible) temporalVisibleFrames.current += 1
+  }, [])
 
   const motionMode = phase === 'transition'
     ? 'blank'
@@ -176,38 +249,46 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
   const latestResult = results.at(-1)
   const oppositePercentage = Math.round(config.oppositeDirectionShare * 100)
   const samePercentage = 100 - oppositePercentage
-  const oppositeCount = assignedGroupCount(config.particleCount, config.oppositeDirectionShare)
-  const sameCount = config.particleCount - oppositeCount
 
   if (phase === 'idle') {
     return (
       <main className={`screen trial-screen ${railOpen ? 'rail-open' : ''}`}>
         <Scene stimulus={config.stimulusType} />
         <section className="trial-intro">
-          <p>RESEARCH MODE · POST-ADAPTATION BIAS</p>
-          <h1>Configurable bidirectional<br />motion bias.</h1>
-          <p>
-            Adapt to fully coherent motion, then report which direction dominates under a controlled mixture
-            of continuing and reversing dots.
-          </p>
-          <button className="primary" onClick={start}><Play />START RANDOMIZED TRIAL<ArrowRight /></button>
-          <CalibrationDisclosure compact />
+          {researchRole === 'operator' ? <>
+            <p>OPERATOR MODE · PROTOCOL CONTROL</p><h1>Post-adaptation bidirectional<br />motion-dominance bias.</h1>
+            <div className="role-switch"><button className="active">OPERATOR</button><button onClick={() => setResearchRole('participant')}>PARTICIPANT VIEW</button></div>
+            <label className="participant-field">PARTICIPANT ID<input value={participantId} onChange={event => setParticipantId(event.target.value)} /></label>
+            <button className="primary" onClick={() => setSequence(buildCounterbalancedSequence(participantId, config))}><Play />GENERATE COUNTERBALANCED SEQUENCE<ArrowRight /></button>
+            {sequence ? <p className="sequence-status">SEQUENCE READY · {sequence.trials.length} TRIALS · {Math.round(config.oppositeDirectionShare * 100)}% OPPOSITE IN EVERY TEST · ORDER {sequence.counterbalanceOrder}</p> : null}
+            <p className="sequence-status">SESSION LOG · {results.length} RECORDS · {results.filter(result => result.aborted).length} ABORTED</p>
+            {results.length ? <p className="sequence-status">LAST RESPONSE LATENCY · {results.at(-1)?.responsePromptLatencyMs ?? 0} MS · FOCUS LOSS {results.at(-1)?.focusLossCount ?? 0}</p> : null}
+            <button disabled={!sequence || sequenceCursor >= sequence.trials.length} onClick={() => setResearchRole('participant')}>LOCK AND OPEN PARTICIPANT MODE</button>
+            {results.length ? <div className="inline-actions"><button onClick={() => downloadText('afterflow-session.json', JSON.stringify({ sessionId, participantId, sequence, results }, null, 2), 'application/json')}>EXPORT JSON</button><button onClick={() => downloadText('afterflow-session.csv', resultToCsv(results), 'text/csv')}>EXPORT CSV</button></div> : null}
+            <CalibrationDisclosure compact />
+          </> : <>
+            <p>PARTICIPANT MODE · SESSION {sequence ? `${sequenceCursor + 1} / ${sequence.trials.length}` : 'AD-HOC'}</p>
+            <h1>Keep your gaze on the centre.<br />Report the dominant motion.</h1>
+            <p>Stop immediately if you feel discomfort. The operator can restore controls after the session.</p>
+            <button className="primary" onClick={() => start()}><Play />BEGIN TRIAL<ArrowRight /></button>
+            <button className="participant-exit" onClick={() => setResearchRole('operator')}>OPERATOR UNLOCK</button>
+          </>}
         </section>
-        <ParameterRail research={research} open={railOpen} onToggle={() => setRailOpen((open) => !open)} />
+        {researchRole === 'operator' ? <ParameterRail research={research} open={railOpen} onToggle={() => setRailOpen((open) => !open)} /> : null}
+        {safetyOpen ? <SafetyConsent onCancel={() => setSafetyOpen(false)} onConfirm={() => { safetyAcceptedRef.current = true; setSafetyOpen(false); setTimeout(() => start(), 0) }} /> : null}
       </main>
     )
   }
 
   return (
     <main className={`screen trial-screen ${cleanStimulusView ? 'clean-stimulus-view' : ''}`}>
-      <Scene stimulus={config.stimulusType} motionMode={motionMode} cockpit />
+      <Scene stimulus={config.stimulusType} motionMode={motionMode} cockpit onTemporalFrame={onTemporalFrame} />
       <FixedFixation />
 
       {phase === 'response' ? (
         <section className="response-panel" aria-labelledby="motion-response-title">
-          <p>MOTION-DIRECTION RESPONSE · BIDIRECTIONAL TEST</p>
+          <p>MOTION-DIRECTION RESPONSE</p>
           <h2 id="motion-response-title">Which direction was perceptually dominant?</h2>
-          <p className="panel-note">{samePercentage}% same-direction ({sameCount}) · {oppositePercentage}% opposite-direction ({oppositeCount})</p>
           <div className="response-grid">
             {responseByType[config.stimulusType].map(([label, value, Icon]) => (
               <button className={selected === value ? 'selected' : ''} onClick={() => recordDirection(value as MotionDirection)} key={value}>
@@ -221,15 +302,14 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
           <button className="primary" disabled={!selected} onClick={submit}>
             RECORD BIAS REPORT<ArrowRight />
           </button>
-          <button className="panel-exit" onClick={() => setPhase('idle')}>ABORT AND RETURN TO SETUP</button>
+          <button className="panel-exit" onClick={abort}>STOP AND END TRIAL</button>
         </section>
       ) : null}
 
       {phase === 'complete' && latestResult ? (
         <section className="response-panel complete" aria-labelledby="result-title">
-          <p>TRIAL RECORDED · DESCRIPTIVE RESULT</p>
-          <h2 id="result-title">Post-adaptation motion-bias report.</h2>
-          <p className="panel-note">This is a perceptual choice, not a correct / incorrect score.</p>
+          <p>RESPONSE RECORDED</p><h2 id="result-title">Thank you.</h2>
+          {researchRole === 'operator' ? <><p className="panel-note">Operator-only condition and timing record.</p>
           <dl className="result-readout">
             <ResultRow label="ADAPTATION" value={directionLabels[latestResult.config.direction]} />
             <ResultRow label="TEST COMPOSITION" value={`${100 - Math.round(latestResult.config.oppositeDirectionShare * 100)}% same · ${Math.round(latestResult.config.oppositeDirectionShare * 100)}% opposite`} />
@@ -245,17 +325,19 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
             <ResultRow label="COCKPIT REFERENCE" value={latestResult.config.cockpitEnabled ? 'ON' : 'OFF'} />
             <ResultRow label="CONCENTRIC GUIDES" value={latestResult.config.concentricGuidesEnabled ? 'ON' : 'OFF'} />
             <ResultRow label="REFRESH ESTIMATE" value={latestResult.displayCalibration.estimatedRefreshRateHz ? `~${latestResult.displayCalibration.estimatedRefreshRateHz} Hz · NOT VALIDATED` : 'UNAVAILABLE'} />
+            <ResultRow label="FRAME VALIDATION" value={latestResult.temporalSamplingValidation.validatedAgainstDisplayFrames ? 'WEBXR DISPLAY FRAMES · VALIDATED' : 'DESKTOP rAF ESTIMATE · NOT VALIDATED'} />
+            <ResultRow label="FOCUS / HIDDEN" value={`${latestResult.focusLossCount} / ${latestResult.hiddenCount}`} />
           </dl>
           <CalibrationDisclosure compact />
+          </> : <p className="panel-note">Your response has been saved. Condition details remain hidden.</p>}
           <div className="inline-actions">
-            <button onClick={() => setPhase('idle')}>NEXT TRIAL</button>
-            <button onClick={() => downloadText('afterflow-session.json', JSON.stringify(results, null, 2), 'application/json')}>EXPORT JSON</button>
-            <button onClick={() => downloadText('afterflow-session.csv', resultToCsv(results), 'text/csv')}>EXPORT CSV</button>
+            <button onClick={() => sequence ? advanceSequence() : setPhase('idle')}>NEXT TRIAL</button>
+            {researchRole === 'operator' ? <><button onClick={() => downloadText('afterflow-session.json', JSON.stringify({ sessionId, participantId, sequence, results }, null, 2), 'application/json')}>EXPORT JSON</button><button onClick={() => downloadText('afterflow-session.csv', resultToCsv(results), 'text/csv')}>EXPORT CSV</button></> : null}
           </div>
         </section>
       ) : null}
 
-      {cleanStimulusView ? <span className="sr-only">Press P to pause or Escape to abort the trial.</span> : null}
+      {cleanStimulusView ? <button className="always-stop" onClick={abort}><Square /> STOP</button> : null}
       {cleanStimulusView && paused ? <div className="paused-indicator">PAUSED · PRESS P TO RESUME</div> : null}
       {cleanStimulusView ? <progress className="sr-only" max={duration} value={Math.min(duration, elapsed)}>Trial progress</progress> : null}
     </main>
@@ -264,6 +346,22 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
 
 function ResultRow({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>
+}
+
+function SafetyConsent({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  const [screened, setScreened] = useState(false)
+  const [understood, setUnderstood] = useState(false)
+  return <div className="safety-backdrop" role="dialog" aria-modal="true" aria-labelledby="flicker-safety-title">
+    <section className="safety-dialog">
+      <ShieldAlert />
+      <p>ACTIVE SAFETY CONFIRMATION</p>
+      <h2 id="flicker-safety-title">Intentional 1 / 3 duty-cycle flicker</h2>
+      <p>This condition may produce visible flicker. Do not continue if you have photosensitive epilepsy, a history of flicker-triggered symptoms, migraine sensitivity, or feel unwell.</p>
+      <label><input type="checkbox" checked={screened} onChange={event => setScreened(event.target.checked)} /> I have completed the study's eligibility and photosensitivity screening.</label>
+      <label><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} /> I understand that the STOP control remains visible and I can end the trial immediately.</label>
+      <div className="inline-actions"><button onClick={onCancel}>CANCEL</button><button className="primary" disabled={!screened || !understood} onClick={onConfirm}>I CONFIRM · BEGIN</button></div>
+    </section>
+  </div>
 }
 
 function CalibrationDisclosure({ compact = false }: { compact?: boolean }) {
@@ -372,7 +470,7 @@ function ParameterRail({ research, open, onToggle }: { research: boolean; open: 
             <p className="temporal-safety-note">INTENTIONAL FLICKER CONDITION · A 1 / 3 DISPLAY DUTY CYCLE PRODUCES PHYSICAL FLICKER AT APPROXIMATELY REFRESH RATE ÷ 3.</p>
           </ParameterSection>
 
-          <ParameterSection title="Motion distribution" description="Configure the physical test mixture and conceptual velocity.">
+          <ParameterSection title="Motion distribution" description="Set the continuous experimental factor used by every generated test trial. The sequence will not add other proportions automatically.">
             <RangeControl label="Opposite-direction share" display={`${oppositePercentage}%`} min={0} max={100} value={oppositePercentage} onChange={(value) => setConfig({ oppositeDirectionShare: value / 100 })} note={`${oppositeCount} OF ${config.particleCount} DOTS`} />
             <RangeControl label="Conceptual speed" display={config.speed.toFixed(1)} min={0.2} max={3} step={0.1} value={config.speed} onChange={(speed) => setConfig({ speed })} note="WORLD UNITS / S" />
           </ParameterSection>
