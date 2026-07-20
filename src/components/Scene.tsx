@@ -2,7 +2,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CockpitReferenceFrame } from './CockpitReferenceFrame'
-import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
+import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { MotionDirection, StimulusType, TrialConfig } from '../types'
 
@@ -20,13 +20,10 @@ function makeParticleSeed(config: TrialConfig, count: number): ParticleSeed {
   const positions = new Float32Array(count * 3)
   const signal = deterministicGroupMask(count, config.oppositeDirectionShare, config.randomSeed ^ 0x9e3779b9)
   for (let i = 0; i < count; i++) {
-    const theta = random() * Math.PI * 2
-    const minRadius = config.presentation === 'peripheral' ? config.peripheralInnerRadius * 5 : 0.05
-    const radius = minRadius + Math.sqrt(random()) * (config.apertureRadius * 4.7 - minRadius)
-    positions[i * 3] = Math.cos(theta) * radius
-    positions[i * 3 + 1] = Math.sin(theta) * radius
-    const distance = config.particleNearDistance + random() * (config.particleFarDistance - config.particleNearDistance)
-    positions[i * 3 + 2] = CAMERA_Z - distance
+    const sample = sampleParticleCoordinates(config, random)
+    positions[i * 3] = sample.x
+    positions[i * 3 + 1] = sample.y
+    positions[i * 3 + 2] = CAMERA_Z - sample.distance
   }
   return { positions, signal }
 }
@@ -38,15 +35,29 @@ function coherentVelocity(type: StimulusType, direction: MotionDirection, speed:
   return [0, sign * speed * 1.7, 0] as const
 }
 
-function wrapPosition(position: THREE.Vector3, config: TrialConfig) {
+function wrapPosition(position: THREE.Vector3, config: TrialConfig, random: () => number) {
   const nearZ = CAMERA_Z - config.particleNearDistance
   const farZ = CAMERA_Z - config.particleFarDistance
-  if (position.z > nearZ) position.z = farZ
-  if (position.z < farZ) position.z = nearZ
-  if (position.x > 5.4) position.x = -5.4
-  if (position.x < -5.4) position.x = 5.4
-  if (position.y > 4.2) position.y = -4.2
-  if (position.y < -4.2) position.y = 4.2
+  if (position.z > nearZ || position.z < farZ) {
+    const sample = sampleParticleCoordinates(config, random)
+    position.x = sample.x
+    position.y = sample.y
+    position.z = position.z > nearZ ? farZ : nearZ
+    return
+  }
+  if (position.x > 5.4 || position.x < -5.4) {
+    const sample = sampleParticleCoordinates(config, random)
+    position.x = position.x > 5.4 ? -5.4 : 5.4
+    position.y = sample.y
+    position.z = CAMERA_Z - sample.distance
+    return
+  }
+  if (position.y > 4.2 || position.y < -4.2) {
+    const sample = sampleParticleCoordinates(config, random)
+    position.x = sample.x
+    position.y = position.y > 4.2 ? -4.2 : 4.2
+    position.z = CAMERA_Z - sample.distance
+  }
 }
 
 function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: TrialConfig; count: number; mode: MotionMode; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
@@ -56,6 +67,7 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
   const accumulatedAdaptationDelta = useRef(0)
   const adaptationOpacityElapsed = useRef(0)
   const seed = useMemo(() => makeParticleSeed(config, count), [config, count])
+  const respawnRandom = useMemo(() => seededRandom(config.randomSeed ^ 0x85ebca6b), [config.randomSeed])
   const position = useMemo(() => new THREE.Vector3(), [])
   const matrix = useMemo(() => new THREE.Matrix4(), [])
   const testDirection = oppositeDirection(config.direction)
@@ -104,7 +116,7 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
         const velocity = mode === 'test' && seed.signal[i] === 1 ? oppositeVelocity : adaptationVelocity
         const vx = velocity[0], vy = velocity[1], vz = velocity[2]
         position.x += vx * motionDelta; position.y += vy * motionDelta; position.z += vz * motionDelta
-        wrapPosition(position, config)
+        wrapPosition(position, config, respawnRandom)
         seed.positions[offset] = position.x; seed.positions[offset + 1] = position.y; seed.positions[offset + 2] = position.z
       }
       const distance = CAMERA_Z - position.z

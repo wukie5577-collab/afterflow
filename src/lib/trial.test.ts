@@ -1,4 +1,4 @@
-import { assignedGroupCount, BLANK_TRANSITION_DURATION_MS, buildCounterbalancedSequence, canTransition, deterministicGroupMask, estimateRefreshRate, isStimulusPhase, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, responseLatencyMs, responseRelation, resultToCsv, seededRandom, temporalDutyCycleOpacity, temporalSamplingSummary, usesAdaptationTemporalSampling, validateConfig } from './trial'
+import { assignedGroupCount, BLANK_TRANSITION_DURATION_MS, buildCounterbalancedSequence, canTransition, deterministicGroupMask, estimateRefreshRate, isStimulusPhase, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, responseLatencyMs, responseRelation, resultToCsv, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, temporalSamplingSummary, usesAdaptationTemporalSampling, validateConfig } from './trial'
 import { defaultConfig, type TrialResult } from '../types'
 
 describe('trial logic',()=>{
@@ -7,6 +7,7 @@ describe('trial logic',()=>{
   it('uses a 200 ms blank interval between adaptation and test',()=>{expect(BLANK_TRANSITION_DURATION_MS).toBe(200)})
   it('identifies only the unobstructed stimulus-view phases',()=>{expect(isStimulusPhase('adaptation')).toBe(true);expect(isStimulusPhase('motion-test')).toBe(true);expect(isStimulusPhase('response')).toBe(false)})
   it('produces deterministic random values',()=>{const a=seededRandom(7),b=seededRandom(7);expect([a(),a(),a()]).toEqual([b(),b(),b()])})
+  it('resamples a new deterministic position for every particle generation',()=>{const random=seededRandom(12);const first=sampleParticleCoordinates(defaultConfig,random);const second=sampleParticleCoordinates(defaultConfig,random);expect(second).not.toEqual(first);const replay=seededRandom(12);expect(sampleParticleCoordinates(defaultConfig,replay)).toEqual(first);expect(sampleParticleCoordinates(defaultConfig,replay)).toEqual(second)})
   it('shows exactly one frame in each three-frame adaptation cycle',()=>{expect([0,1,2,3,4,5].filter(frame=>isTemporalSampleFrame(frame,3))).toEqual([1,4]);expect([0,1,2,3,4,5].map(frame=>temporalDutyCycleOpacity(frame,3,.8))).toEqual([0,.8,0,0,.8,0])})
   it('changes successive visible-frame brightness with a gradual raised-sine envelope',()=>{expect(raisedSineOpacity(0,1,.55)).toBeCloseTo(.55);expect(raisedSineOpacity(.5,1,.55)).toBeCloseTo(1);expect(raisedSineOpacity(1,1,.55)).toBeCloseTo(.55)})
   it('never applies temporal sampling to the motion test',()=>{expect(usesAdaptationTemporalSampling('adaptation',true)).toBe(true);expect(usesAdaptationTemporalSampling('test',true)).toBe(false);expect(usesAdaptationTemporalSampling('adaptation',false)).toBe(false)})

@@ -24,6 +24,14 @@ export function seededRandom(seed: number) {
   return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296 }
 }
 
+export function sampleParticleCoordinates(config: TrialConfig, random: () => number) {
+  const theta = random() * Math.PI * 2
+  const minRadius = config.presentation === 'peripheral' ? config.peripheralInnerRadius * 5 : 0.05
+  const radius = minRadius + Math.sqrt(random()) * (config.apertureRadius * 4.7 - minRadius)
+  const distance = config.particleNearDistance + random() * (config.particleFarDistance - config.particleNearDistance)
+  return { x: Math.cos(theta) * radius, y: Math.sin(theta) * radius, distance }
+}
+
 function hashText(value: string) {
   let hash = 2166136261
   for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619)
