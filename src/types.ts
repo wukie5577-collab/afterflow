@@ -1,7 +1,7 @@
 export type AppMode = 'landing' | 'experience' | 'research' | 'explain' | 'presentation'
 export type StimulusType = 'radial' | 'horizontal' | 'vertical'
 export type MotionDirection = 'forward' | 'backward' | 'left' | 'right' | 'up' | 'down' | 'static' | 'none'
-export type TrialPhase = 'idle' | 'instructions' | 'fixation' | 'adaptation' | 'transition' | 'motion-test' | 'response' | 'confidence' | 'complete'
+export type TrialPhase = 'idle' | 'instructions' | 'fixation' | 'adaptation' | 'transition' | 'motion-test' | 'response' | 'complete'
 
 export interface TrialConfig {
   stimulusType: StimulusType
@@ -11,6 +11,8 @@ export interface TrialConfig {
   speed: number
   particleCount: number
   particleSize: number
+  particleNearDistance: number
+  particleFarDistance: number
   presentation: 'full-field' | 'peripheral'
   randomSeed: number
   attentionTask: boolean
@@ -21,6 +23,12 @@ export interface TrialConfig {
   peripheralInnerRadius: number
   cockpitEnabled: boolean
   concentricGuidesEnabled: boolean
+  adaptationTemporalSamplingEnabled: boolean
+  adaptationFrameStride: 3
+  adaptationVisibleFramesPerCycle: 1
+  adaptationOpacityEnvelope: 'raised-sine'
+  adaptationOpacityFrequencyHz: number
+  adaptationMinimumOpacity: number
 }
 
 export type ResponseRelation = 'opposite-to-adaptation' | 'same-as-adaptation' | 'static' | 'unsure' | 'other'
@@ -44,9 +52,9 @@ export interface TrialResult {
   maeConsistentDirection: MotionDirection
   response: MotionDirection | 'unsure'
   responseRelation: ResponseRelation
-  confidence: number
   responsePromptLatencyMs: number
   actualAdaptationDurationMs: number
+  actualMotionTestDurationMs: number
   frameIntervals: number[]
   displayCalibration: DisplayCalibrationStatus
   warnings: string[]
@@ -56,7 +64,10 @@ export interface TrialResult {
 export const defaultConfig: TrialConfig = {
   stimulusType: 'radial', direction: 'forward', adaptationDurationMs: 20000,
   staticTestDurationMs: 5000, speed: 1.2, particleCount: 100, particleSize: 0.045,
+  particleNearDistance: 3, particleFarDistance: 23,
   presentation: 'peripheral', randomSeed: 1024, attentionTask: true,
   oppositeDirectionShare: 0.5, luminance: 0.82, contrast: 0.72, apertureRadius: 1,
   peripheralInnerRadius: 0.16, cockpitEnabled: true, concentricGuidesEnabled: true,
+  adaptationTemporalSamplingEnabled: false, adaptationFrameStride: 3, adaptationVisibleFramesPerCycle: 1, adaptationOpacityEnvelope: 'raised-sine',
+  adaptationOpacityFrequencyHz: 0.75, adaptationMinimumOpacity: 0.55,
 }

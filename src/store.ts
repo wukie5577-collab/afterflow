@@ -34,7 +34,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   toggleReducedEffects: () => set(s => ({ reducedEffects: !s.reducedEffects })),
 }), {
   name: 'afterflow-settings',
-  version: 3,
+  version: 7,
   migrate: (persistedState, version) => {
     const saved = persistedState as Partial<Pick<AppState, 'quality' | 'muted' | 'reducedEffects'>> & { config?: Partial<TrialConfig> }
     return {
@@ -48,6 +48,14 @@ export const useAppStore = create<AppState>()(persist((set) => ({
           oppositeDirectionShare: 0.5,
           cockpitEnabled: true,
           concentricGuidesEnabled: true,
+        } : {}),
+        ...(version < 6 ? {
+          adaptationOpacityEnvelope: 'raised-sine' as const,
+          adaptationOpacityFrequencyHz: 0.75,
+          adaptationMinimumOpacity: 0.55,
+        } : {}),
+        ...(version < 7 ? {
+          adaptationVisibleFramesPerCycle: 1 as const,
         } : {}),
       },
     }

@@ -98,7 +98,7 @@
   .parameter-rail>p,.parameter-rail .calibration-disclosure,.parameter-rail label:nth-of-type(n+4){display:block}
   .parameter-rail-toggle{top:84px}.parameter-rail-toggle.open{left:min(292px,calc(100vw - 48px))}
   .trial-screen.rail-open .trial-intro{opacity:.15;pointer-events:none}
-  .response-panel,.confidence-panel{top:0;width:100%;padding:46px 20px 32px}
+  .response-panel{top:0;width:100%;padding:46px 20px 32px}
   .response-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .response-grid button{aspect-ratio:2.15}
   .response-panel.complete{left:12px;right:12px;top:12px;bottom:12px;transform:none;width:auto;padding:28px 20px}
@@ -106,4 +106,50 @@
   .calibration-disclosure.compact dl{grid-template-columns:1fr}
   .explain section{left:24px;top:14%;width:calc(100% - 48px);padding-right:18px}
   .explain-calibration{max-width:100%}
+}
+
+/* Research setup panel: grouped controls preserve the stimulus viewport while
+   making the longer, recorded parameter set easier to scan. */
+.trial-screen.rail-open .trial-intro{left:420px;width:min(440px,34vw)}
+.parameter-rail{width:380px;padding:0 26px 30px;gap:0;background:linear-gradient(180deg,rgba(7,11,10,.985),rgba(5,8,7,.955));border-right-color:rgba(223,160,68,.24)}
+.parameter-rail-toggle.open{left:332px}
+.parameter-rail-header{position:sticky;z-index:2;top:0;margin:0 -26px;padding:27px 26px 20px;background:linear-gradient(180deg,#080c0a 76%,rgba(8,12,10,.88));border-bottom:1px solid rgba(233,230,218,.12)}
+.parameter-rail-header>span{color:var(--amber);font:9px DM Mono,monospace;letter-spacing:.16em}
+.parameter-rail-header h1{margin:8px 0 5px;color:var(--ivory);font:300 27px/1.1 Manrope,sans-serif;letter-spacing:-.025em}
+.parameter-rail-header p{margin:0;color:#81837d;font:8px/1.5 DM Mono,monospace;letter-spacing:.06em}
+.parameter-rail .protocol-lock{margin:20px 0 4px;padding:14px 15px;border:1px solid rgba(100,210,208,.25);background:rgba(100,210,208,.035)}
+.parameter-section{padding:22px 0 2px;border-bottom:1px solid rgba(233,230,218,.13)}
+.parameter-section>header{margin-bottom:15px}
+.parameter-section>header h2{margin:0;color:var(--ivory);font:500 10px DM Mono,monospace;letter-spacing:.15em;text-transform:uppercase}
+.parameter-section>header p{margin:7px 0 0;color:#747770;font:8px/1.55 DM Mono,monospace;letter-spacing:.055em}
+.parameter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px}
+.parameter-rail .parameter-control{display:block;min-width:0;margin:0;padding:0;border:0;color:#979991;font:8px/1.35 DM Mono,monospace;letter-spacing:.09em}
+.parameter-control>span{display:block;min-height:22px}
+.parameter-rail .parameter-control b{display:block;margin:3px 0 0;color:var(--amber);font:300 22px/1.1 Manrope,sans-serif;letter-spacing:-.02em}
+.parameter-rail .parameter-control input[type=range]{display:block;width:100%;margin:11px 0 0;accent-color:var(--amber)}
+.parameter-rail .parameter-control small{min-height:24px;margin-top:7px;color:#696c66;font-size:7px;line-height:1.45;letter-spacing:.075em}
+.parameter-rail .select-control select{height:38px;margin-top:5px;padding:0 8px;border:1px solid rgba(233,230,218,.18);background:#0b0f0d;color:var(--ivory);font-size:8px;letter-spacing:.08em}
+.depth-reference-note{grid-column:1/-1;margin:0;padding:11px 12px;border-left:1px solid var(--cyan);background:rgba(100,210,208,.035);color:#8b9e99;font:7.5px/1.6 DM Mono,monospace;letter-spacing:.065em}
+.temporal-toggle{grid-column:1/-1}
+.temporal-spec{grid-column:1/-1;padding:11px 12px;border:1px solid rgba(233,230,218,.14);background:rgba(233,230,218,.025)}
+.temporal-spec span,.temporal-spec b,.temporal-spec small{display:block}
+.temporal-spec span{color:#777a74;font:7px DM Mono,monospace;letter-spacing:.12em}
+.temporal-spec b{margin-top:7px;color:#9a9c95;font:400 14px DM Mono,monospace;letter-spacing:.08em}
+.temporal-spec small{margin-top:7px;color:#666963;font:7px/1.45 DM Mono,monospace;letter-spacing:.06em}
+.temporal-spec.active{border-color:rgba(223,160,68,.42);background:rgba(223,160,68,.05)}
+.temporal-spec.active b{color:var(--amber)}
+.temporal-module-note{grid-column:1/-1;margin:0;padding:11px 12px;border-left:1px solid var(--amber);background:rgba(223,160,68,.035);color:#918777;font:7.5px/1.6 DM Mono,monospace;letter-spacing:.055em}
+.temporal-safety-note{grid-column:1/-1;margin:0;padding:9px 12px;border:1px solid rgba(231,115,77,.35);background:rgba(231,115,77,.055);color:#c28b76;font:7px/1.55 DM Mono,monospace;letter-spacing:.065em}
+.parameter-rail>.calibration-disclosure{margin-top:22px}
+
+@media(max-width:900px){
+  .trial-screen.rail-open .trial-intro{left:24px;width:calc(100% - 48px)}
+  .parameter-rail{width:min(400px,100%);padding:0 22px 28px}
+  .parameter-rail-header{margin:0 -22px;padding:24px 22px 18px}
+  .parameter-rail-toggle.open{left:auto;right:0}
+}
+
+@media(max-width:420px){
+  .parameter-grid{gap:15px 10px}
+  .parameter-rail .parameter-control b{font-size:20px}
 }
