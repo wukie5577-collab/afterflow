@@ -1,5 +1,18 @@
 # AFTERFLOW
 
+## Primary research question
+
+AFTERFLOW now treats the study as a **post-adaptation bidirectional motion-dominance bias experiment**: after coherent directional adaptation, does the participant report a dominance advantage for dots moving opposite to the adaptation direction when opposite- and same-direction dots are presented together? This is not labelled as a classic static-test MAE measurement.
+
+The research interface separates:
+
+- **Operator Mode** — protocol parameters, condition composition, counterbalanced sequence generation, calibration limitations, event logs, and export.
+- **Participant Mode** — fixation, stimulus, neutral response wording, and a neutral acknowledgement only. Mixture proportions, predictions, condition labels, and exports are hidden.
+
+The operator-selected opposite-direction share is a continuous experimental factor from 0–100%. Every trial in a generated block uses that exact requested share; the sequence never injects other proportions automatically. A block balances both adaptation directions and all cockpit/concentric-guide combinations (8 trials). Participant-ID parity selects AB/BA direction order; trials are then deterministically shuffled within the block. Values of 0% and 100% are recorded as the same-only and opposite-only endpoints respectively.
+
+The optional 1/3 duty-cycle condition requires an active photosensitivity acknowledgement and always exposes a STOP control. In desktop mode, temporal sampling is explicitly recorded as a `desktop-raf-estimate` and is **not** display-frame validated. Only WebXR frames with `XRFrame.predictedDisplayTime` are marked display-frame validated; device-specific validation remains required before controlled data collection.
+
 A code-first React Three Fiber experiment for measuring post-adaptation perceptual bias in a configurable bidirectional motion test.
 
 ## Run

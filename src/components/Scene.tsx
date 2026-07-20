@@ -49,7 +49,7 @@ function wrapPosition(position: THREE.Vector3, config: TrialConfig) {
   if (position.y < -4.2) position.y = 4.2
 }
 
-function CoherenceStimulus({ config, count, mode }: { config: TrialConfig; count: number; mode: MotionMode }) {
+function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: TrialConfig; count: number; mode: MotionMode; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const mesh = useRef<THREE.InstancedMesh>(null)
   const material = useRef<THREE.MeshBasicMaterial>(null)
   const adaptationFrame = useRef(0)
@@ -67,7 +67,7 @@ function CoherenceStimulus({ config, count, mode }: { config: TrialConfig; count
     if (material.current) material.current.opacity = 1
   }, [mode])
 
-  useFrame((_, delta) => {
+  useFrame((state, delta, xrFrame) => {
     if (!mesh.current) return
     const adaptationVelocity = coherentVelocity(config.stimulusType, config.direction, config.speed)
     const oppositeVelocity = coherentVelocity(config.stimulusType, testDirection, config.speed)
@@ -83,6 +83,8 @@ function CoherenceStimulus({ config, count, mode }: { config: TrialConfig; count
       if (material.current) material.current.opacity = temporalDutyCycleOpacity(adaptationFrame.current, stride, visibleFrameOpacity)
       accumulatedAdaptationDelta.current += frameDelta
       advancePositions = isTemporalSampleFrame(adaptationFrame.current, stride)
+      const xrTimestamp = xrFrame?.predictedDisplayTime
+      onTemporalFrame?.(xrTimestamp ?? state.clock.elapsedTime * 1000, advancePositions, xrTimestamp == null ? 'desktop-raf-estimate' : 'webxr-predicted-display-time')
       if (advancePositions) {
         motionDelta = Math.min(accumulatedAdaptationDelta.current, 0.15)
         accumulatedAdaptationDelta.current = 0
@@ -127,7 +129,7 @@ function ConcentricGuides() {
   </mesh>)}</group>
 }
 
-export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, cockpit = false }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; cockpit?: boolean }) {
+export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, cockpit = false, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; cockpit?: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const config = useAppStore(s => s.config)
   const quality = useAppStore(s => s.quality)
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
@@ -150,7 +152,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   >
     <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
       <color attach="background" args={['#080b0a']} />
-      {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} />}
+      {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} onTemporalFrame={onTemporalFrame} />}
       {motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled ? <ConcentricGuides /> : null}
       {cockpit && sceneConfig.cockpitEnabled ? <CockpitReferenceFrame /> : null}
     </Canvas>

@@ -1,4 +1,4 @@
-import type { DisplayCalibrationStatus, MotionDirection, ResponseRelation, TrialConfig, TrialPhase, TrialResult } from '../types'
+import type { ControlCondition, DisplayCalibrationStatus, MotionDirection, ResponseRelation, TemporalSamplingValidation, TrialConfig, TrialDefinition, TrialPhase, TrialResult, TrialSequence } from '../types'
 
 export const BLANK_TRANSITION_DURATION_MS = 200
 
@@ -22,6 +22,63 @@ export function canTransition(from: TrialPhase, to: TrialPhase) { return legalTr
 export function seededRandom(seed: number) {
   let value = seed >>> 0
   return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296 }
+}
+
+function hashText(value: string) {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619)
+  return hash >>> 0
+}
+
+export function buildCounterbalancedSequence(participantId: string, base: TrialConfig, repetitions = 1): TrialSequence {
+  const participantSeed = hashText(participantId || 'anonymous')
+  const order: TrialSequence['counterbalanceOrder'] = participantSeed % 2 === 0 ? 'AB' : 'BA'
+  const directionPair: MotionDirection[] = base.stimulusType === 'radial' ? ['forward', 'backward'] : base.stimulusType === 'horizontal' ? ['left', 'right'] : ['up', 'down']
+  if (order === 'BA') directionPair.reverse()
+  const condition: ControlCondition = base.oppositeDirectionShare === 0
+    ? 'same-only-control'
+    : base.oppositeDirectionShare === 1
+      ? 'opposite-only-control'
+      : 'bidirectional-test'
+  const trials: TrialDefinition[] = []
+  for (let block = 0; block < Math.max(1, repetitions); block++) {
+    const blockTrials: TrialDefinition[] = []
+    for (const direction of directionPair) for (const cockpitEnabled of [true, false]) for (const concentricGuidesEnabled of [true, false]) {
+      const trialIndex = blockTrials.length
+      blockTrials.push({
+        id: `${participantId || 'anonymous'}-${block + 1}-${trialIndex + 1}`,
+        trialIndex: 0,
+        blockIndex: block,
+        condition,
+        config: { ...base, direction, oppositeDirectionShare: base.oppositeDirectionShare, cockpitEnabled, concentricGuidesEnabled, randomSeed: participantSeed ^ (block * 4099 + trialIndex * 131) },
+      })
+    }
+    const random = seededRandom(participantSeed ^ (block + 1) * 0x9e3779b9)
+    for (let i = blockTrials.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [blockTrials[i], blockTrials[j]] = [blockTrials[j], blockTrials[i]] }
+    trials.push(...blockTrials)
+  }
+  trials.forEach((trial, index) => { trial.trialIndex = index })
+  return { id: crypto.randomUUID(), participantId, createdAt: new Date().toISOString(), counterbalanceOrder: order, trials }
+}
+
+export function temporalSamplingSummary(frameTimes: number[], visibleFrameCount: number, scheduler: TemporalSamplingValidation['scheduler']): TemporalSamplingValidation {
+  const intervals = frameTimes.slice(1).map((value, index) => value - frameTimes[index]).filter(value => value > 0 && value < 100)
+  const sorted = [...intervals].sort((a, b) => a - b)
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null
+  return {
+    scheduler,
+    validatedAgainstDisplayFrames: scheduler === 'webxr-predicted-display-time',
+    observedFrameCount: frameTimes.length,
+    visibleFrameCount,
+    observedDutyCycle: frameTimes.length ? visibleFrameCount / frameTimes.length : null,
+    medianFrameIntervalMs: median,
+    effectiveVisibleRateHz: median ? 1000 / median / 3 : null,
+  }
+}
+
+export function responseLatencyMs(promptTimestamp: number, responseTimestamp: number) {
+  if (!Number.isFinite(promptTimestamp) || !Number.isFinite(responseTimestamp) || promptTimestamp <= 0 || responseTimestamp < promptTimestamp) return 0
+  return Math.round(responseTimestamp - promptTimestamp)
 }
 
 export function assignedGroupCount(count: number, share: number) {
@@ -90,8 +147,8 @@ export function displayCalibrationStatus(frameIntervals: number[]): DisplayCalib
 }
 
 export function resultToCsv(results: TrialResult[]) {
-  const header = ['id','timestamp','stimulusType','adaptationDirection','maeConsistentDirection','response','responseRelation','responsePromptLatencyMs','adaptationDurationMs','actualAdaptationDurationMs','adaptationTemporalSamplingEnabled','adaptationFrameStride','adaptationVisibleFramesPerCycle','adaptationOpacityEnvelope','adaptationOpacityFrequencyHz','adaptationMinimumOpacity','motionTestDurationMs','actualMotionTestDurationMs','blankTransitionDurationMs','particleCount','particleSize','particleNearDistance','particleFarDistance','conceptualSpeed','oppositeDirectionShare','randomSeed','cockpitEnabled','concentricGuidesEnabled','viewingDistanceCm','physicalScreenWidthCm','visualAngleCalibrated','estimatedRefreshRateHz','refreshRateValidated','deviceTimingValidated','viewportWidthPx','viewportHeightPx','devicePixelRatio','warnings','aborted']
-  const rows = results.map(r => [r.id,r.timestamp,r.config.stimulusType,r.config.direction,r.maeConsistentDirection,r.response,r.responseRelation,r.responsePromptLatencyMs,r.config.adaptationDurationMs,r.actualAdaptationDurationMs,r.config.adaptationTemporalSamplingEnabled,r.config.adaptationFrameStride,r.config.adaptationVisibleFramesPerCycle,r.config.adaptationOpacityEnvelope,r.config.adaptationOpacityFrequencyHz,r.config.adaptationMinimumOpacity,r.config.staticTestDurationMs,r.actualMotionTestDurationMs,BLANK_TRANSITION_DURATION_MS,r.config.particleCount,r.config.particleSize,r.config.particleNearDistance,r.config.particleFarDistance,r.config.speed,r.config.oppositeDirectionShare,r.config.randomSeed,r.config.cockpitEnabled,r.config.concentricGuidesEnabled,r.displayCalibration.viewingDistanceCm,r.displayCalibration.physicalScreenWidthCm,r.displayCalibration.visualAngleCalibrated,r.displayCalibration.estimatedRefreshRateHz,r.displayCalibration.refreshRateValidated,r.displayCalibration.deviceTimingValidated,r.displayCalibration.viewportWidthPx,r.displayCalibration.viewportHeightPx,r.displayCalibration.devicePixelRatio,r.warnings.join('|'),r.aborted].map(csvCell).join(','))
+  const header = ['id','sessionId','participantId','sequenceId','trialIndex','blockIndex','condition','timestamp','stimulusType','adaptationDirection','response','responseRelation','responsePromptLatencyMs','adaptationDurationMs','actualAdaptationDurationMs','motionTestDurationMs','actualMotionTestDurationMs','blankTransitionDurationMs','particleCount','particleSize','conceptualSpeed','oppositeDirectionShare','randomSeed','cockpitEnabled','concentricGuidesEnabled','temporalScheduler','displayFrameValidated','observedFrameCount','visibleFrameCount','observedDutyCycle','effectiveVisibleRateHz','focusLossCount','hiddenCount','events','warnings','aborted']
+  const rows = results.map(r => [r.id,r.sessionId,r.participantId,r.sequenceId,r.trialIndex,r.blockIndex,r.condition,r.timestamp,r.config.stimulusType,r.config.direction,r.response,r.responseRelation,r.responsePromptLatencyMs,r.config.adaptationDurationMs,r.actualAdaptationDurationMs,r.config.staticTestDurationMs,r.actualMotionTestDurationMs,BLANK_TRANSITION_DURATION_MS,r.config.particleCount,r.config.particleSize,r.config.speed,r.config.oppositeDirectionShare,r.config.randomSeed,r.config.cockpitEnabled,r.config.concentricGuidesEnabled,r.temporalSamplingValidation.scheduler,r.temporalSamplingValidation.validatedAgainstDisplayFrames,r.temporalSamplingValidation.observedFrameCount,r.temporalSamplingValidation.visibleFrameCount,r.temporalSamplingValidation.observedDutyCycle,r.temporalSamplingValidation.effectiveVisibleRateHz,r.focusLossCount,r.hiddenCount,JSON.stringify(r.events),r.warnings.join('|'),r.aborted].map(csvCell).join(','))
   return [header.join(','), ...rows].join('\n')
 }
 

@@ -1,4 +1,5 @@
 export type AppMode = 'landing' | 'experience' | 'research' | 'explain' | 'presentation'
+export type ResearchRole = 'operator' | 'participant'
 export type StimulusType = 'radial' | 'horizontal' | 'vertical'
 export type MotionDirection = 'forward' | 'backward' | 'left' | 'right' | 'up' | 'down' | 'static' | 'none'
 export type TrialPhase = 'idle' | 'instructions' | 'fixation' | 'adaptation' | 'transition' | 'motion-test' | 'response' | 'complete'
@@ -31,6 +32,41 @@ export interface TrialConfig {
   adaptationMinimumOpacity: number
 }
 
+export type ControlCondition = 'bidirectional-test' | 'same-only-control' | 'opposite-only-control' | 'no-adaptation-control'
+
+export interface TrialDefinition {
+  id: string
+  trialIndex: number
+  blockIndex: number
+  condition: ControlCondition
+  config: TrialConfig
+}
+
+export interface TrialSequence {
+  id: string
+  participantId: string
+  createdAt: string
+  counterbalanceOrder: 'AB' | 'BA'
+  trials: TrialDefinition[]
+}
+
+export interface TrialEvent {
+  type: 'trial-start' | 'phase-enter' | 'response-prompt' | 'response-selected' | 'pause' | 'resume' | 'focus-lost' | 'focus-restored' | 'visibility-hidden' | 'visibility-visible' | 'abort' | 'complete'
+  atMs: number
+  phase: TrialPhase
+  detail?: string
+}
+
+export interface TemporalSamplingValidation {
+  scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate'
+  validatedAgainstDisplayFrames: boolean
+  observedFrameCount: number
+  visibleFrameCount: number
+  observedDutyCycle: number | null
+  medianFrameIntervalMs: number | null
+  effectiveVisibleRateHz: number | null
+}
+
 export type ResponseRelation = 'opposite-to-adaptation' | 'same-as-adaptation' | 'static' | 'unsure' | 'other'
 
 export interface DisplayCalibrationStatus {
@@ -59,6 +95,16 @@ export interface TrialResult {
   displayCalibration: DisplayCalibrationStatus
   warnings: string[]
   aborted: boolean
+  sessionId: string
+  participantId: string
+  sequenceId: string
+  trialIndex: number
+  blockIndex: number
+  condition: ControlCondition
+  events: TrialEvent[]
+  focusLossCount: number
+  hiddenCount: number
+  temporalSamplingValidation: TemporalSamplingValidation
 }
 
 export const defaultConfig: TrialConfig = {

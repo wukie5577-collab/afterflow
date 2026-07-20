@@ -153,3 +153,11 @@
   .parameter-grid{gap:15px 10px}
   .parameter-rail .parameter-control b{font-size:20px}
 }
+
+/* Blinded protocol roles and flicker-safety controls. */
+.role-switch{display:flex;gap:8px;margin:18px 0}.role-switch button,.participant-exit{padding:12px 14px;border:1px solid var(--line);color:var(--muted)}.role-switch button.active{border-color:var(--amber);color:var(--amber)}
+.participant-field{display:grid;gap:8px;margin:18px 0;color:var(--muted);font:9px DM Mono,monospace;letter-spacing:.12em}.participant-field input{width:220px;padding:12px;border:1px solid var(--line);background:rgba(5,8,7,.85);color:var(--ivory)}
+.sequence-status{color:var(--cyan)!important;font:9px DM Mono,monospace!important;letter-spacing:.1em}.participant-exit{display:block;margin-top:18px;font-size:8px}
+.always-stop{position:fixed;z-index:70;right:24px;top:22px;display:flex;align-items:center;gap:9px;padding:12px 15px;border:1px solid rgba(236,106,82,.8);background:rgba(18,7,5,.94);color:#ff9a84;font:10px DM Mono,monospace;letter-spacing:.14em}.always-stop svg{width:13px;height:13px;fill:currentColor}.always-stop:hover{background:#421b14}
+.safety-backdrop{position:fixed;z-index:100;inset:0;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.86);backdrop-filter:blur(9px)}.safety-dialog{width:min(620px,100%);padding:34px;border:1px solid rgba(236,106,82,.6);background:#0c0e0d;box-shadow:0 20px 80px #000}.safety-dialog>svg{width:32px;color:#ff9a84}.safety-dialog>p:first-of-type{color:#ff9a84;font:9px DM Mono,monospace;letter-spacing:.14em}.safety-dialog h2{font-size:34px;font-weight:300;margin:14px 0}.safety-dialog>p:not(:first-of-type){color:#b9b8af;line-height:1.7}.safety-dialog label{display:flex;align-items:flex-start;gap:12px;margin-top:16px;color:#d0cec4;font:10px/1.55 DM Mono,monospace;letter-spacing:.04em}.safety-dialog input{margin-top:2px;accent-color:#ff9a84}.safety-dialog .primary{height:48px}
+@media(max-width:600px){.always-stop{right:12px;top:12px}.safety-dialog{padding:24px}.safety-dialog h2{font-size:27px}.trial-intro{overflow-y:auto;max-height:calc(100vh - 100px);padding-bottom:28px}}
