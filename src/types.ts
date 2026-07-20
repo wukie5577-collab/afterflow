@@ -30,6 +30,8 @@ export interface TrialConfig {
   adaptationOpacityEnvelope: 'raised-sine'
   adaptationOpacityFrequencyHz: number
   adaptationMinimumOpacity: number
+  adaptationDotLifetimeMinMs: number
+  adaptationDotLifetimeMaxMs: number
 }
 
 export type ControlCondition = 'bidirectional-test' | 'same-only-control' | 'opposite-only-control' | 'no-adaptation-control'
@@ -116,4 +118,5 @@ export const defaultConfig: TrialConfig = {
   peripheralInnerRadius: 0.16, cockpitEnabled: true, concentricGuidesEnabled: true,
   adaptationTemporalSamplingEnabled: false, adaptationFrameStride: 3, adaptationVisibleFramesPerCycle: 1, adaptationOpacityEnvelope: 'raised-sine',
   adaptationOpacityFrequencyHz: 0.75, adaptationMinimumOpacity: 0.55,
+  adaptationDotLifetimeMinMs: 180, adaptationDotLifetimeMaxMs: 520,
 }

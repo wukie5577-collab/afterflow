@@ -13,19 +13,31 @@ const CAMERA_Z = 8
 interface ParticleSeed {
   positions: Float32Array
   signal: Uint8Array
+  ages: Float32Array
+  lifetimes: Float32Array
+}
+
+function sampleLifetimeSeconds(config: TrialConfig, random: () => number) {
+  const min = config.adaptationDotLifetimeMinMs / 1000
+  const max = config.adaptationDotLifetimeMaxMs / 1000
+  return min + random() * Math.max(0, max - min)
 }
 
 function makeParticleSeed(config: TrialConfig, count: number): ParticleSeed {
   const random = seededRandom(config.randomSeed)
   const positions = new Float32Array(count * 3)
+  const ages = new Float32Array(count)
+  const lifetimes = new Float32Array(count)
   const signal = deterministicGroupMask(count, config.oppositeDirectionShare, config.randomSeed ^ 0x9e3779b9)
   for (let i = 0; i < count; i++) {
     const sample = sampleParticleCoordinates(config, random)
     positions[i * 3] = sample.x
     positions[i * 3 + 1] = sample.y
     positions[i * 3 + 2] = CAMERA_Z - sample.distance
+    lifetimes[i] = sampleLifetimeSeconds(config, random)
+    ages[i] = random() * lifetimes[i]
   }
-  return { positions, signal }
+  return { positions, signal, ages, lifetimes }
 }
 
 function coherentVelocity(type: StimulusType, direction: MotionDirection, speed: number) {
@@ -113,10 +125,18 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
       const offset = i * 3
       position.set(seed.positions[offset], seed.positions[offset + 1], seed.positions[offset + 2])
       if (advancePositions) {
-        const velocity = mode === 'test' && seed.signal[i] === 1 ? oppositeVelocity : adaptationVelocity
-        const vx = velocity[0], vy = velocity[1], vz = velocity[2]
-        position.x += vx * motionDelta; position.y += vy * motionDelta; position.z += vz * motionDelta
-        wrapPosition(position, config, respawnRandom)
+        seed.ages[i] += motionDelta
+        if (mode === 'adaptation' && seed.ages[i] >= seed.lifetimes[i]) {
+          const sample = sampleParticleCoordinates(config, respawnRandom)
+          position.set(sample.x, sample.y, CAMERA_Z - sample.distance)
+          seed.ages[i] = 0
+          seed.lifetimes[i] = sampleLifetimeSeconds(config, respawnRandom)
+        } else {
+          const velocity = mode === 'test' && seed.signal[i] === 1 ? oppositeVelocity : adaptationVelocity
+          const vx = velocity[0], vy = velocity[1], vz = velocity[2]
+          position.x += vx * motionDelta; position.y += vy * motionDelta; position.z += vz * motionDelta
+          wrapPosition(position, config, respawnRandom)
+        }
         seed.positions[offset] = position.x; seed.positions[offset + 1] = position.y; seed.positions[offset + 2] = position.z
       }
       const distance = CAMERA_Z - position.z
@@ -160,6 +180,8 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
     data-adaptation-opacity-envelope={sceneConfig.adaptationOpacityEnvelope}
     data-adaptation-opacity-frequency-hz={sceneConfig.adaptationOpacityFrequencyHz}
     data-adaptation-minimum-opacity={sceneConfig.adaptationMinimumOpacity}
+    data-adaptation-dot-lifetime-min-ms={sceneConfig.adaptationDotLifetimeMinMs}
+    data-adaptation-dot-lifetime-max-ms={sceneConfig.adaptationDotLifetimeMaxMs}
     aria-hidden="true"
   >
     <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
