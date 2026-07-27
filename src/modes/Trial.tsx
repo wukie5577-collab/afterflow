@@ -282,7 +282,7 @@ export function Trial({ research = false, onComplete }: { research?: boolean; on
 
   return (
     <main className={`screen trial-screen ${cleanStimulusView ? 'clean-stimulus-view' : ''}`}>
-      <Scene stimulus={config.stimulusType} motionMode={motionMode} cockpit onTemporalFrame={onTemporalFrame} />
+      <Scene stimulus={config.stimulusType} motionMode={motionMode} onTemporalFrame={onTemporalFrame} />
       <FixedFixation />
 
       {phase === 'response' ? (
