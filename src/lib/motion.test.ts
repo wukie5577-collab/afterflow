@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from './motion'
+import { advanceCoherentDepth, changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from './motion'
 
 describe('true depth-axis motion', () => {
   it('uses only positive z velocity for forward radial motion', () => {
@@ -39,5 +39,10 @@ describe('changing-disparity-only stereo', () => {
 
   it('can swap eye channels without changing disparity magnitude', () => {
     expect(changingDisparityOffsets(6, 12, 0.026, true)).toEqual({ red: -0.013, cyan: 0.013 })
+  })
+
+  it('advances one shared physical depth at constant z velocity', () => {
+    expect(advanceCoherentDepth(12, 3, 0.5, 8, 3, 23)).toBe(10.5)
+    expect(advanceCoherentDepth(12, -3, 0.5, 8, 3, 23)).toBe(13.5)
   })
 })

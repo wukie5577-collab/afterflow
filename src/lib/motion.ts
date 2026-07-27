@@ -38,3 +38,20 @@ export function changingDisparityOffsets(
   const red = (swapEyes ? -1 : 1) * disparity * .5
   return { red, cyan: -red }
 }
+
+export function advanceCoherentDepth(
+  distance: number,
+  velocityZ: number,
+  deltaSeconds: number,
+  cameraZ: number,
+  nearDistance: number,
+  farDistance: number,
+) {
+  const nextZ = wrapDepthZ(
+    cameraZ - distance + velocityZ * deltaSeconds,
+    cameraZ,
+    nearDistance,
+    farDistance,
+  )
+  return cameraZ - nextZ
+}

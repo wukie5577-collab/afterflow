@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CockpitReferenceFrame } from './CockpitReferenceFrame'
 import { ComfortAnaglyphEffect } from '../lib/ComfortAnaglyphEffect'
-import { changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from '../lib/motion'
+import { advanceCoherentDepth, changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from '../lib/motion'
 import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { StimulusType, TrialConfig } from '../types'
@@ -171,74 +171,41 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
   </instancedMesh>
 }
 
-function ChangingDisparityStimulus({ config, count, mode, eyeSeparation, focus, swapEyes, onTemporalFrame }: { config: TrialConfig; count: number; mode: MotionMode; eyeSeparation: number; focus: number; swapEyes: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
+function ChangingDisparityStimulus({ config, count, mode, eyeSeparation, focus, swapEyes }: { config: TrialConfig; count: number; mode: MotionMode; eyeSeparation: number; focus: number; swapEyes: boolean }) {
   const redMesh = useRef<THREE.InstancedMesh>(null)
   const cyanMesh = useRef<THREE.InstancedMesh>(null)
-  const redMaterial = useRef<THREE.MeshBasicMaterial>(null)
-  const cyanMaterial = useRef<THREE.MeshBasicMaterial>(null)
-  const adaptationFrame = useRef(0)
-  const accumulatedAdaptationDelta = useRef(0)
-  const adaptationOpacityElapsed = useRef(0)
   const seed = useMemo(() => makeParticleSeed(config, count), [config, count])
+  const sharedDepth = useRef({ adaptation: focus, opposite: focus })
   const redMatrix = useMemo(() => new THREE.Matrix4(), [])
   const cyanMatrix = useMemo(() => new THREE.Matrix4(), [])
   const testDirection = oppositeDirection(config.direction)
   const fixedPlaneZ = CAMERA_Z - focus
 
   useEffect(() => {
-    adaptationFrame.current = 0
-    accumulatedAdaptationDelta.current = 0
-    adaptationOpacityElapsed.current = 0
-    if (redMaterial.current) redMaterial.current.opacity = 1
-    if (cyanMaterial.current) cyanMaterial.current.opacity = 1
-  }, [mode])
+    sharedDepth.current = { adaptation: focus, opposite: focus }
+  }, [focus, mode])
 
-  useFrame((state, delta, xrFrame) => {
+  useFrame((_, delta) => {
     if (!redMesh.current || !cyanMesh.current) return
     const adaptationVelocity = coherentVelocity('radial', config.direction, config.speed)
     const oppositeVelocity = coherentVelocity('radial', testDirection, config.speed)
     const frameDelta = Math.min(delta, 0.05)
-    const temporalSamplingActive = usesAdaptationTemporalSampling(mode, config.adaptationTemporalSamplingEnabled)
-    let motionDelta = frameDelta
-    let advanceDepth = mode !== 'idle'
-    let opacity = 1
-
-    if (temporalSamplingActive) {
-      const stride = config.adaptationFrameStride
-      adaptationOpacityElapsed.current += frameDelta
-      const envelope = raisedSineOpacity(adaptationOpacityElapsed.current, config.adaptationOpacityFrequencyHz, config.adaptationMinimumOpacity)
-      opacity = temporalDutyCycleOpacity(adaptationFrame.current, stride, envelope)
-      accumulatedAdaptationDelta.current += frameDelta
-      advanceDepth = isTemporalSampleFrame(adaptationFrame.current, stride)
-      const xrTimestamp = xrFrame?.predictedDisplayTime
-      onTemporalFrame?.(xrTimestamp ?? state.clock.elapsedTime * 1000, advanceDepth, xrTimestamp == null ? 'desktop-raf-estimate' : 'webxr-predicted-display-time')
-      if (advanceDepth) {
-        motionDelta = Math.min(accumulatedAdaptationDelta.current, 0.15)
-        accumulatedAdaptationDelta.current = 0
+    if (mode !== 'idle') {
+      sharedDepth.current.adaptation = advanceCoherentDepth(sharedDepth.current.adaptation, adaptationVelocity[2], frameDelta, CAMERA_Z, config.particleNearDistance, config.particleFarDistance)
+      if (mode === 'test') {
+        sharedDepth.current.opposite = advanceCoherentDepth(sharedDepth.current.opposite, oppositeVelocity[2], frameDelta, CAMERA_Z, config.particleNearDistance, config.particleFarDistance)
+      } else {
+        sharedDepth.current.opposite = sharedDepth.current.adaptation
       }
-      adaptationFrame.current += 1
-    } else {
-      adaptationFrame.current = 0
-      accumulatedAdaptationDelta.current = 0
-      adaptationOpacityElapsed.current = 0
     }
-    if (redMaterial.current) redMaterial.current.opacity = opacity
-    if (cyanMaterial.current) cyanMaterial.current.opacity = opacity
 
     for (let i = 0; i < count; i++) {
       const offset = i * 3
-      let virtualZ = seed.positions[offset + 2]
-      if (advanceDepth) {
-        const velocity = mode === 'test' && seed.signal[i] === 1 ? oppositeVelocity : adaptationVelocity
-        virtualZ = wrapDepthZ(virtualZ + velocity[2] * motionDelta, CAMERA_Z, config.particleNearDistance, config.particleFarDistance)
-        seed.positions[offset + 2] = virtualZ
-      }
-
-      // Persistent binocular correspondences keep the cyclopean x/y position
-      // stable. Only horizontal disparity changes over time.
       const baseX = seed.positions[offset]
       const baseY = seed.positions[offset + 1]
-      const virtualDistance = CAMERA_Z - virtualZ
+      const virtualDistance = mode === 'test' && seed.signal[i] === 1
+        ? sharedDepth.current.opposite
+        : sharedDepth.current.adaptation
       const offsets = changingDisparityOffsets(virtualDistance, focus, eyeSeparation, swapEyes)
       redMatrix.makeTranslation(baseX + offsets.red, baseY, fixedPlaneZ)
       cyanMatrix.makeTranslation(baseX + offsets.cyan, baseY, fixedPlaneZ)
@@ -253,11 +220,11 @@ function ChangingDisparityStimulus({ config, count, mode, eyeSeparation, focus, 
   return <>
     <instancedMesh ref={redMesh} args={[undefined, undefined, count]} frustumCulled={false} renderOrder={1}>
       <circleGeometry args={[dotSize, 12]} />
-      <meshBasicMaterial ref={redMaterial} color="#ff0000" transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      <meshBasicMaterial color="#ff0000" transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
     </instancedMesh>
     <instancedMesh ref={cyanMesh} args={[undefined, undefined, count]} frustumCulled={false} renderOrder={2}>
       <circleGeometry args={[dotSize, 12]} />
-      <meshBasicMaterial ref={cyanMaterial} color="#00ffff" transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      <meshBasicMaterial color="#00ffff" transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
     </instancedMesh>
   </>
 }
@@ -291,12 +258,14 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
     data-cd-only-cue={cdOnlyActive ? 'changing-horizontal-disparity' : undefined}
     data-cd-only-monocular-position={cdOnlyActive ? 'fixed-correlated' : undefined}
     data-cd-only-dot-size={cdOnlyActive ? 'constant' : undefined}
+    data-cd-only-depth-field={cdOnlyActive ? 'shared-coherent-z' : undefined}
+    data-cd-only-temporal-sampling={cdOnlyActive ? 'disabled' : undefined}
     data-concentric-guides-visible={guidesVisible}
     data-cockpit-visible={cockpitVisible}
     data-particle-near-distance={sceneConfig.particleNearDistance}
     data-particle-far-distance={sceneConfig.particleFarDistance}
     data-adaptation-temporal-sampling={sceneConfig.adaptationTemporalSamplingEnabled}
-    data-temporal-sampling-active={usesAdaptationTemporalSampling(motionMode, sceneConfig.adaptationTemporalSamplingEnabled)}
+    data-temporal-sampling-active={!cdOnlyActive && usesAdaptationTemporalSampling(motionMode, sceneConfig.adaptationTemporalSamplingEnabled)}
     data-adaptation-frame-stride={sceneConfig.adaptationFrameStride}
     data-adaptation-visible-frames-per-cycle={sceneConfig.adaptationVisibleFramesPerCycle}
     data-temporal-frame-pattern="blank-visible-blank"
@@ -313,7 +282,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
       <directionalLight position={[-4, 6, 10]} intensity={2.4} />
       <directionalLight position={[5, -2, 5]} intensity={.65} />
       {motionMode === 'blank' ? null : cdOnlyActive
-        ? <ChangingDisparityStimulus config={sceneConfig} count={count} mode={motionMode} eyeSeparation={stereoDepth} focus={stereoFocus} swapEyes={stereoSwapEyes} onTemporalFrame={onTemporalFrame} />
+        ? <ChangingDisparityStimulus config={sceneConfig} count={count} mode={motionMode} eyeSeparation={stereoDepth} focus={stereoFocus} swapEyes={stereoSwapEyes} />
         : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} onTemporalFrame={onTemporalFrame} />}
       {guidesVisible ? <ConcentricGuides /> : null}
       {cockpitVisible ? <CockpitReferenceFrame /> : null}
