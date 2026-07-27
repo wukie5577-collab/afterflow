@@ -55,3 +55,28 @@ export function advanceCoherentDepth(
   )
   return cameraZ - nextZ
 }
+
+export function oneWayCoherentDepth(
+  focusDistance: number,
+  amplitude: number,
+  progress: number,
+  direction: MotionDirection,
+) {
+  const clampedProgress = Math.min(1, Math.max(0, progress))
+  const nearDistance = focusDistance - amplitude
+  const farDistance = focusDistance + amplitude
+  return direction === 'forward'
+    ? farDistance - clampedProgress * amplitude * 2
+    : nearDistance + clampedProgress * amplitude * 2
+}
+
+export function repeatingOneWayProgress(
+  elapsedSeconds: number,
+  travelDurationSeconds: number,
+  endpointHoldSeconds: number,
+) {
+  const travelDuration = Math.max(0.001, travelDurationSeconds)
+  const cycleDuration = travelDuration + Math.max(0, endpointHoldSeconds)
+  const cycleTime = Math.max(0, elapsedSeconds) % cycleDuration
+  return Math.min(1, cycleTime / travelDuration)
+}
