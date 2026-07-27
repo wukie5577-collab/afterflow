@@ -254,7 +254,7 @@ function ZeroDisparityReference({ z }: { z: number }) {
   </group>
 }
 
-export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, cockpit = false, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; cockpit?: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
+export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const config = useAppStore(s => s.config)
   const quality = useAppStore(s => s.quality)
   const displayMode = useAppStore(s => s.displayMode)
@@ -265,7 +265,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
   const guidesVisible = motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled
-  const cockpitVisible = cockpit && sceneConfig.cockpitEnabled
+  const cockpitVisible = sceneConfig.cockpitEnabled
   return <div
     className="scene stimulus-canvas"
     data-stimulus-origin="viewport-center"

@@ -58,7 +58,7 @@ export function Explain() {
   const current = steps[step]
   return (
     <main className="screen explain">
-      <Scene stimulus="radial" motionMode={current.mode} cockpit />
+      <Scene stimulus="radial" motionMode={current.mode} />
       <section>
         <p>POST-ADAPTATION BIDIRECTIONAL PROTOCOL · {String(step + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}</p>
         <h1>{current.title}</h1>
