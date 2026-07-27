@@ -180,7 +180,6 @@ function ChangingDisparityStimulus({ config, count, mode, eyeSeparation, focus, 
   const accumulatedAdaptationDelta = useRef(0)
   const adaptationOpacityElapsed = useRef(0)
   const seed = useMemo(() => makeParticleSeed(config, count), [config, count])
-  const dynamicRandom = useMemo(() => seededRandom(config.randomSeed ^ 0xc2b2ae35), [config.randomSeed])
   const redMatrix = useMemo(() => new THREE.Matrix4(), [])
   const cyanMatrix = useMemo(() => new THREE.Matrix4(), [])
   const testDirection = oppositeDirection(config.direction)
@@ -235,11 +234,10 @@ function ChangingDisparityStimulus({ config, count, mode, eyeSeparation, focus, 
         seed.positions[offset + 2] = virtualZ
       }
 
-      // A dynamic RDS replaces monocular dot positions each active frame while
-      // preserving binocular correspondence within that frame.
-      const sample = mode === 'idle' ? null : sampleParticleCoordinates(config, dynamicRandom)
-      const baseX = sample?.x ?? seed.positions[offset]
-      const baseY = sample?.y ?? seed.positions[offset + 1]
+      // Persistent binocular correspondences keep the cyclopean x/y position
+      // stable. Only horizontal disparity changes over time.
+      const baseX = seed.positions[offset]
+      const baseY = seed.positions[offset + 1]
       const virtualDistance = CAMERA_Z - virtualZ
       const offsets = changingDisparityOffsets(virtualDistance, focus, eyeSeparation, swapEyes)
       redMatrix.makeTranslation(baseX + offsets.red, baseY, fixedPlaneZ)
@@ -281,6 +279,8 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   const cdOnlyActive = displayMode === 'cd-only' && stimulus === 'radial'
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
+  const guidesVisible = motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled
+  const cockpitVisible = cockpit && sceneConfig.cockpitEnabled
   return <div
     className="scene stimulus-canvas"
     data-stimulus-origin="viewport-center"
@@ -289,8 +289,10 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
     data-display-mode={displayMode}
     data-cd-only-active={cdOnlyActive}
     data-cd-only-cue={cdOnlyActive ? 'changing-horizontal-disparity' : undefined}
-    data-cd-only-monocular-position={cdOnlyActive ? 'dynamic-random' : undefined}
+    data-cd-only-monocular-position={cdOnlyActive ? 'fixed-correlated' : undefined}
     data-cd-only-dot-size={cdOnlyActive ? 'constant' : undefined}
+    data-concentric-guides-visible={guidesVisible}
+    data-cockpit-visible={cockpitVisible}
     data-particle-near-distance={sceneConfig.particleNearDistance}
     data-particle-far-distance={sceneConfig.particleFarDistance}
     data-adaptation-temporal-sampling={sceneConfig.adaptationTemporalSamplingEnabled}
@@ -313,8 +315,8 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
       {motionMode === 'blank' ? null : cdOnlyActive
         ? <ChangingDisparityStimulus config={sceneConfig} count={count} mode={motionMode} eyeSeparation={stereoDepth} focus={stereoFocus} swapEyes={stereoSwapEyes} onTemporalFrame={onTemporalFrame} />
         : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} onTemporalFrame={onTemporalFrame} />}
-      {motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled && !cdOnlyActive ? <ConcentricGuides /> : null}
-      {cockpit && sceneConfig.cockpitEnabled && !cdOnlyActive ? <CockpitReferenceFrame /> : null}
+      {guidesVisible ? <ConcentricGuides /> : null}
+      {cockpitVisible ? <CockpitReferenceFrame /> : null}
       {displayMode === 'anaglyph' ? <AnaglyphRenderer eyeSeparation={stereoDepth} focus={stereoFocus} swapEyes={stereoSwapEyes} /> : null}
     </Canvas>
   </div>
