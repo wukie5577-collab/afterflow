@@ -1,10 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { defaultConfig, type AppMode, type ResearchRole, type TrialConfig, type TrialPhase, type TrialResult, type TrialSequence } from './types'
+import { defaultConfig, type AppMode, type DisplayMode, type ResearchRole, type TrialConfig, type TrialPhase, type TrialResult, type TrialSequence } from './types'
 
 interface AppState {
   mode: AppMode
   quality: 'performance' | 'balanced' | 'showcase'
+  displayMode: DisplayMode
+  stereoDepth: number
+  stereoFocus: number
+  stereoSwapEyes: boolean
   muted: boolean
   reducedEffects: boolean
   config: TrialConfig
@@ -25,6 +29,11 @@ interface AppState {
   resetExperience: () => void
   toggleMuted: () => void
   setQuality: (quality: AppState['quality']) => void
+  setDisplayMode: (displayMode: DisplayMode) => void
+  setStereoDepth: (stereoDepth: number) => void
+  setStereoFocus: (stereoFocus: number) => void
+  toggleStereoSwapEyes: () => void
+  resetStereoCalibration: () => void
   toggleReducedEffects: () => void
   setResearchRole: (role: ResearchRole) => void
   setParticipantId: (id: string) => void
@@ -34,7 +43,9 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()(persist((set) => ({
-  mode: 'landing', quality: 'balanced', muted: true, reducedEffects: false,
+  mode: 'landing', quality: 'balanced', displayMode: 'standard',
+  stereoDepth: 0.026, stereoFocus: 12, stereoSwapEyes: false,
+  muted: true, reducedEffects: false,
   config: defaultConfig, phase: 'idle', results: [], completedChannels: [], researchRole: 'operator',
   participantId: 'P001', sessionId: crypto.randomUUID(), sequence: null, sequenceCursor: 0,
   setMode: mode => set({ mode, phase: 'idle' }), setPhase: phase => set({ phase }),
@@ -44,6 +55,11 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   completeChannel: channel => set(s => ({ completedChannels: s.completedChannels.includes(channel) ? s.completedChannels : [...s.completedChannels, channel] })),
   resetExperience: () => set({ completedChannels: [], phase: 'idle' }),
   toggleMuted: () => set(s => ({ muted: !s.muted })), setQuality: quality => set({ quality }),
+  setDisplayMode: displayMode => set({ displayMode }),
+  setStereoDepth: stereoDepth => set({ stereoDepth }),
+  setStereoFocus: stereoFocus => set({ stereoFocus }),
+  toggleStereoSwapEyes: () => set(s => ({ stereoSwapEyes: !s.stereoSwapEyes })),
+  resetStereoCalibration: () => set({ stereoDepth: 0, stereoFocus: 12, stereoSwapEyes: false }),
   toggleReducedEffects: () => set(s => ({ reducedEffects: !s.reducedEffects })),
   setResearchRole: researchRole => set({ researchRole }),
   setParticipantId: participantId => set({ participantId }),
@@ -52,11 +68,15 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   clearSequence: () => set({ sequence: null, sequenceCursor: 0, phase: 'idle' }),
 }), {
   name: 'afterflow-settings',
-  version: 8,
+  version: 10,
   migrate: (persistedState, version) => {
-    const saved = persistedState as Partial<Pick<AppState, 'quality' | 'muted' | 'reducedEffects'>> & { config?: Partial<TrialConfig> }
+    const saved = persistedState as Partial<Pick<AppState, 'quality' | 'displayMode' | 'stereoDepth' | 'stereoFocus' | 'stereoSwapEyes' | 'muted' | 'reducedEffects'>> & { config?: Partial<TrialConfig> }
     return {
       quality: saved.quality ?? 'balanced',
+      displayMode: saved.displayMode ?? 'standard',
+      stereoDepth: saved.stereoDepth ?? 0.026,
+      stereoFocus: saved.stereoFocus ?? 12,
+      stereoSwapEyes: saved.stereoSwapEyes ?? false,
       muted: saved.muted ?? true,
       reducedEffects: saved.reducedEffects ?? false,
       config: {
@@ -82,7 +102,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
       },
     }
   },
-  partialize: s => ({ quality: s.quality, muted: s.muted, reducedEffects: s.reducedEffects, config: s.config, researchRole: s.researchRole, participantId: s.participantId }),
+  partialize: s => ({ quality: s.quality, displayMode: s.displayMode, stereoDepth: s.stereoDepth, stereoFocus: s.stereoFocus, stereoSwapEyes: s.stereoSwapEyes, muted: s.muted, reducedEffects: s.reducedEffects, config: s.config, researchRole: s.researchRole, participantId: s.participantId }),
   merge: (persisted, current) => {
     const saved = persisted as Partial<AppState>
     return { ...current, ...saved, config: { ...defaultConfig, ...saved.config } }
