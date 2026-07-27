@@ -265,7 +265,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
   const guidesVisible = motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled
-  const cockpitVisible = sceneConfig.cockpitEnabled
+  const cockpitVisible = true
   return <div
     className="scene stimulus-canvas"
     data-stimulus-origin="viewport-center"

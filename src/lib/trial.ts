@@ -51,14 +51,14 @@ export function buildCounterbalancedSequence(participantId: string, base: TrialC
   const trials: TrialDefinition[] = []
   for (let block = 0; block < Math.max(1, repetitions); block++) {
     const blockTrials: TrialDefinition[] = []
-    for (const direction of directionPair) for (const cockpitEnabled of [true, false]) for (const concentricGuidesEnabled of [true, false]) {
+    for (const direction of directionPair) for (const repetition of [0, 1]) for (const concentricGuidesEnabled of [true, false]) {
       const trialIndex = blockTrials.length
       blockTrials.push({
         id: `${participantId || 'anonymous'}-${block + 1}-${trialIndex + 1}`,
         trialIndex: 0,
         blockIndex: block,
         condition,
-        config: { ...base, direction, oppositeDirectionShare: base.oppositeDirectionShare, cockpitEnabled, concentricGuidesEnabled, randomSeed: participantSeed ^ (block * 4099 + trialIndex * 131) },
+        config: { ...base, direction, oppositeDirectionShare: base.oppositeDirectionShare, cockpitEnabled: true, concentricGuidesEnabled, randomSeed: participantSeed ^ (block * 4099 + trialIndex * 131 + repetition * 17) },
       })
     }
     const random = seededRandom(participantSeed ^ (block + 1) * 0x9e3779b9)

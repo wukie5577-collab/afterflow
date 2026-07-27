@@ -488,8 +488,8 @@ function ParameterRail({ research, open, onToggle }: { research: boolean; open: 
 
           <ParameterSection title="Reference factors" description="These stable structures are experimental factors, not neutral decoration.">
             <label className="parameter-control select-control"><span>COCKPIT REFERENCE</span>
-              <select aria-label="Cockpit reference" value={config.cockpitEnabled ? 'on' : 'off'} onChange={(event) => setConfig({ cockpitEnabled: event.target.value === 'on' })}>
-                <option value="on">ON · RECORDED</option><option value="off">OFF · RECORDED</option>
+              <select aria-label="Cockpit reference" value="on" disabled>
+                <option value="on">ON · ALWAYS</option>
               </select>
             </label>
             <label className="parameter-control select-control"><span>CONCENTRIC GUIDES</span>
