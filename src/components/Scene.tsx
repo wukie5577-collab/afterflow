@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CockpitReferenceFrame } from './CockpitReferenceFrame'
 import { ComfortAnaglyphEffect } from '../lib/ComfortAnaglyphEffect'
+import { coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from '../lib/motion'
 import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
-import type { MotionDirection, StimulusType, TrialConfig } from '../types'
+import type { StimulusType, TrialConfig } from '../types'
 
 type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
@@ -61,21 +62,11 @@ function makeParticleSeed(config: TrialConfig, count: number): ParticleSeed {
   return { positions, signal, ages, lifetimes }
 }
 
-function coherentVelocity(type: StimulusType, direction: MotionDirection, speed: number) {
-  const sign = ['forward', 'right', 'up'].includes(direction) ? 1 : -1
-  if (type === 'radial') return [0, 0, sign * speed * 2.5] as const
-  if (type === 'horizontal') return [sign * speed * 1.7, 0, 0] as const
-  return [0, sign * speed * 1.7, 0] as const
-}
-
 function wrapPosition(position: THREE.Vector3, config: TrialConfig, random: () => number) {
   const nearZ = CAMERA_Z - config.particleNearDistance
   const farZ = CAMERA_Z - config.particleFarDistance
   if (position.z > nearZ || position.z < farZ) {
-    const sample = sampleParticleCoordinates(config, random)
-    position.x = sample.x
-    position.y = sample.y
-    position.z = position.z > nearZ ? farZ : nearZ
+    position.z = wrapDepthZ(position.z, CAMERA_Z, config.particleNearDistance, config.particleFarDistance)
     return
   }
   if (position.x > 5.4 || position.x < -5.4) {
@@ -91,6 +82,12 @@ function wrapPosition(position: THREE.Vector3, config: TrialConfig, random: () =
     position.y = position.y > 4.2 ? -4.2 : 4.2
     position.z = CAMERA_Z - sample.distance
   }
+}
+
+function respawnAfterLifetime(position: THREE.Vector3, config: TrialConfig, random: () => number) {
+  const sample = sampleParticleCoordinates(config, random)
+  const next = lifetimeRespawnCoordinates(config.stimulusType, position, sample, CAMERA_Z)
+  position.set(next.x, next.y, next.z)
 }
 
 function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: TrialConfig; count: number; mode: MotionMode; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
@@ -148,8 +145,7 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
       if (advancePositions) {
         seed.ages[i] += motionDelta
         if (mode === 'adaptation' && seed.ages[i] >= seed.lifetimes[i]) {
-          const sample = sampleParticleCoordinates(config, respawnRandom)
-          position.set(sample.x, sample.y, CAMERA_Z - sample.distance)
+          respawnAfterLifetime(position, config, respawnRandom)
           seed.ages[i] = 0
           seed.lifetimes[i] = sampleLifetimeSeconds(config, respawnRandom)
         } else {
@@ -195,6 +191,7 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
     className="scene stimulus-canvas"
     data-stimulus-origin="viewport-center"
     data-motion-mode={motionMode}
+    data-radial-motion-axis="z-only"
     data-display-mode={displayMode}
     data-particle-near-distance={sceneConfig.particleNearDistance}
     data-particle-far-distance={sceneConfig.particleFarDistance}
