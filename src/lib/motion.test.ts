@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { advanceCoherentDepth, changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from './motion'
+import { advanceCoherentDepth, changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, oneWayCoherentDepth, repeatingOneWayProgress, wrapDepthZ } from './motion'
 
 describe('true depth-axis motion', () => {
   it('uses only positive z velocity for forward radial motion', () => {
@@ -44,5 +44,20 @@ describe('changing-disparity-only stereo', () => {
   it('advances one shared physical depth at constant z velocity', () => {
     expect(advanceCoherentDepth(12, 3, 0.5, 8, 3, 23)).toBe(10.5)
     expect(advanceCoherentDepth(12, -3, 0.5, 8, 3, 23)).toBe(13.5)
+  })
+
+  it('runs one way and clamps at the endpoint', () => {
+    expect(oneWayCoherentDepth(12, 4, 0, 'forward')).toBe(16)
+    expect(oneWayCoherentDepth(12, 4, 0.5, 'forward')).toBe(12)
+    expect(oneWayCoherentDepth(12, 4, 1, 'forward')).toBe(8)
+    expect(oneWayCoherentDepth(12, 4, 0, 'backward')).toBe(8)
+    expect(oneWayCoherentDepth(12, 4, 2, 'backward')).toBe(16)
+  })
+
+  it('holds briefly and then resets the same one-way ramp', () => {
+    expect(repeatingOneWayProgress(0, 4, 0.5)).toBe(0)
+    expect(repeatingOneWayProgress(2, 4, 0.5)).toBe(0.5)
+    expect(repeatingOneWayProgress(4.25, 4, 0.5)).toBe(1)
+    expect(repeatingOneWayProgress(4.5, 4, 0.5)).toBe(0)
   })
 })
