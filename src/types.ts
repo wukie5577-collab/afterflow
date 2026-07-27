@@ -1,4 +1,5 @@
 export type AppMode = 'landing' | 'experience' | 'research' | 'explain' | 'presentation'
+export type DisplayMode = 'standard' | 'anaglyph'
 export type ResearchRole = 'operator' | 'participant'
 export type StimulusType = 'radial' | 'horizontal' | 'vertical'
 export type MotionDirection = 'forward' | 'backward' | 'left' | 'right' | 'up' | 'down' | 'static' | 'none'

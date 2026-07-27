@@ -1,7 +1,8 @@
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { CockpitReferenceFrame } from './CockpitReferenceFrame'
+import { ComfortAnaglyphEffect } from '../lib/ComfortAnaglyphEffect'
 import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
 import type { MotionDirection, StimulusType, TrialConfig } from '../types'
@@ -9,6 +10,26 @@ import type { MotionDirection, StimulusType, TrialConfig } from '../types'
 type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
 const CAMERA_Z = 8
+
+function AnaglyphRenderer({ eyeSeparation, focus, swapEyes }: { eyeSeparation: number; focus: number; swapEyes: boolean }) {
+  const { camera, gl, scene, size } = useThree()
+  const effect = useMemo(() => new ComfortAnaglyphEffect(gl), [gl])
+
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) camera.focus = focus
+    effect.setEyeSeparation(eyeSeparation)
+    effect.setSwapEyes(swapEyes)
+    effect.setSize(size.width, size.height)
+  }, [camera, effect, eyeSeparation, focus, size.height, size.width, swapEyes])
+
+  useEffect(() => () => effect.dispose(), [effect])
+
+  useFrame(() => {
+    if (camera instanceof THREE.PerspectiveCamera) effect.render(scene, camera)
+  }, 1)
+
+  return null
+}
 
 interface ParticleSeed {
   positions: Float32Array
@@ -74,7 +95,7 @@ function wrapPosition(position: THREE.Vector3, config: TrialConfig, random: () =
 
 function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: TrialConfig; count: number; mode: MotionMode; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const mesh = useRef<THREE.InstancedMesh>(null)
-  const material = useRef<THREE.MeshBasicMaterial>(null)
+  const material = useRef<THREE.MeshStandardMaterial>(null)
   const adaptationFrame = useRef(0)
   const accumulatedAdaptationDelta = useRef(0)
   const adaptationOpacityElapsed = useRef(0)
@@ -149,8 +170,8 @@ function CoherenceStimulus({ config, count, mode, onTemporalFrame }: { config: T
   })
   const gray = THREE.MathUtils.clamp(config.luminance * config.contrast, .05, 1)
   return <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false}>
-    <circleGeometry args={[config.particleSize, 12]} />
-    <meshBasicMaterial ref={material} color={new THREE.Color(gray, gray, gray)} transparent depthWrite={false} opacity={1} toneMapped={false} />
+    <sphereGeometry args={[config.particleSize, 12, 8]} />
+    <meshStandardMaterial ref={material} color={new THREE.Color(gray, gray, gray)} roughness={.62} metalness={0} transparent depthWrite opacity={1} toneMapped={false} />
   </instancedMesh>
 }
 
@@ -164,12 +185,17 @@ function ConcentricGuides() {
 export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, cockpit = false, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; cockpit?: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const config = useAppStore(s => s.config)
   const quality = useAppStore(s => s.quality)
+  const displayMode = useAppStore(s => s.displayMode)
+  const stereoDepth = useAppStore(s => s.stereoDepth)
+  const stereoFocus = useAppStore(s => s.stereoFocus)
+  const stereoSwapEyes = useAppStore(s => s.stereoSwapEyes)
   const count = preview ? (quality === 'performance' ? 90 : 180) : config.particleCount
   const sceneConfig = useMemo(() => preview ? { ...config, stimulusType: stimulus, particleCount: count } : { ...config, stimulusType: stimulus }, [config, count, preview, stimulus])
   return <div
     className="scene stimulus-canvas"
     data-stimulus-origin="viewport-center"
     data-motion-mode={motionMode}
+    data-display-mode={displayMode}
     data-particle-near-distance={sceneConfig.particleNearDistance}
     data-particle-far-distance={sceneConfig.particleFarDistance}
     data-adaptation-temporal-sampling={sceneConfig.adaptationTemporalSamplingEnabled}
@@ -186,9 +212,13 @@ export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = fals
   >
     <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 50 }} dpr={quality === 'performance' ? 1 : [1, 1.5]} gl={{ antialias: true, alpha: false }}>
       <color attach="background" args={['#080b0a']} />
+      <ambientLight intensity={1.35} />
+      <directionalLight position={[-4, 6, 10]} intensity={2.4} />
+      <directionalLight position={[5, -2, 5]} intensity={.65} />
       {motionMode === 'blank' ? null : <CoherenceStimulus config={sceneConfig} count={count} mode={motionMode} onTemporalFrame={onTemporalFrame} />}
       {motionMode !== 'blank' && stimulus === 'radial' && sceneConfig.concentricGuidesEnabled ? <ConcentricGuides /> : null}
       {cockpit && sceneConfig.cockpitEnabled ? <CockpitReferenceFrame /> : null}
+      {displayMode === 'anaglyph' ? <AnaglyphRenderer eyeSeparation={stereoDepth} focus={stereoFocus} swapEyes={stereoSwapEyes} /> : null}
     </Canvas>
   </div>
 }
