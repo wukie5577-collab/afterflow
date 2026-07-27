@@ -6,7 +6,7 @@ import { ComfortAnaglyphEffect } from '../lib/ComfortAnaglyphEffect'
 import { changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, oneWayCoherentDepth, repeatingOneWayProgress, wrapDepthZ } from '../lib/motion'
 import { deterministicGroupMask, isTemporalSampleFrame, oppositeDirection, raisedSineOpacity, sampleParticleCoordinates, seededRandom, temporalDutyCycleOpacity, usesAdaptationTemporalSampling } from '../lib/trial'
 import { useAppStore } from '../store'
-import type { StimulusType, TrialConfig } from '../types'
+import type { DisplayMode, StimulusType, TrialConfig } from '../types'
 
 type MotionMode = 'idle' | 'adaptation' | 'blank' | 'test'
 
@@ -254,10 +254,11 @@ function ZeroDisparityReference({ z }: { z: number }) {
   </group>
 }
 
-export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
+export function Scene({ stimulus = 'radial', motionMode = 'idle', preview = false, displayModeOverride, onTemporalFrame }: { stimulus?: StimulusType; motionMode?: MotionMode; preview?: boolean; displayModeOverride?: DisplayMode; onTemporalFrame?: (timestamp: number, visible: boolean, scheduler: 'webxr-predicted-display-time' | 'desktop-raf-estimate') => void }) {
   const config = useAppStore(s => s.config)
   const quality = useAppStore(s => s.quality)
-  const displayMode = useAppStore(s => s.displayMode)
+  const storedDisplayMode = useAppStore(s => s.displayMode)
+  const displayMode = displayModeOverride ?? storedDisplayMode
   const stereoDepth = useAppStore(s => s.stereoDepth)
   const stereoFocus = useAppStore(s => s.stereoFocus)
   const stereoSwapEyes = useAppStore(s => s.stereoSwapEyes)
