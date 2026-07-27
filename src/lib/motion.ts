@@ -27,3 +27,14 @@ export function lifetimeRespawnCoordinates(
     z: cameraZ - sample.distance,
   }
 }
+
+export function changingDisparityOffsets(
+  virtualDistance: number,
+  convergenceDistance: number,
+  eyeSeparation: number,
+  swapEyes = false,
+) {
+  const disparity = eyeSeparation * (convergenceDistance / virtualDistance - 1)
+  const red = (swapEyes ? -1 : 1) * disparity * .5
+  return { red, cyan: -red }
+}
