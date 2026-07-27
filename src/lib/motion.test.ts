@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from './motion'
+import { changingDisparityOffsets, coherentVelocity, lifetimeRespawnCoordinates, wrapDepthZ } from './motion'
 
 describe('true depth-axis motion', () => {
   it('uses only positive z velocity for forward radial motion', () => {
@@ -22,5 +22,22 @@ describe('true depth-axis motion', () => {
       { x: -4, y: 3, distance: 11 },
       8,
     )).toEqual({ x: 1.25, y: -0.75, z: -3 })
+  })
+})
+
+describe('changing-disparity-only stereo', () => {
+  it('has zero disparity at the convergence plane', () => {
+    expect(changingDisparityOffsets(12, 12, 0.026)).toEqual({ red: 0, cyan: -0 })
+  })
+
+  it('keeps the cyclopean midpoint fixed while changing horizontal disparity', () => {
+    const offsets = changingDisparityOffsets(6, 12, 0.026)
+    expect(offsets.red).toBeCloseTo(0.013)
+    expect(offsets.cyan).toBeCloseTo(-0.013)
+    expect(offsets.red + offsets.cyan).toBe(0)
+  })
+
+  it('can swap eye channels without changing disparity magnitude', () => {
+    expect(changingDisparityOffsets(6, 12, 0.026, true)).toEqual({ red: -0.013, cyan: 0.013 })
   })
 })
