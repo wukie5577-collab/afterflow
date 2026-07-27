@@ -68,7 +68,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   clearSequence: () => set({ sequence: null, sequenceCursor: 0, phase: 'idle' }),
 }), {
   name: 'afterflow-settings',
-  version: 10,
+  version: 11,
   migrate: (persistedState, version) => {
     const saved = persistedState as Partial<Pick<AppState, 'quality' | 'displayMode' | 'stereoDepth' | 'stereoFocus' | 'stereoSwapEyes' | 'muted' | 'reducedEffects'>> & { config?: Partial<TrialConfig> }
     return {
@@ -98,6 +98,9 @@ export const useAppStore = create<AppState>()(persist((set) => ({
         ...(version < 8 ? {
           adaptationDotLifetimeMinMs: 180,
           adaptationDotLifetimeMaxMs: 520,
+        } : {}),
+        ...(version < 11 ? {
+          cockpitEnabled: true,
         } : {}),
       },
     }
